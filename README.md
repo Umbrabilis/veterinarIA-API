@@ -34,13 +34,24 @@ sequenceDiagram
 
 ## Cómo correr en local
 
+Todo el backend (API + PostgreSQL) corre en Docker con un solo comando:
+
 ```bash
-docker-compose up -d          # levanta PostgreSQL en localhost:5432
-./mvnw spring-boot:run         # levanta la API en localhost:8080
+docker-compose up -d --build   # construye la imagen de la API y levanta API + PostgreSQL
 ```
 
+- API: http://localhost:8080
 - Swagger UI: http://localhost:8080/swagger-ui.html
 - Health check: http://localhost:8080/actuator/health
+- PostgreSQL: localhost:5432 (para conectarte con un cliente de DB si lo necesitas)
+
+También se puede correr solo PostgreSQL en Docker y la API desde el IDE/`mvnw` (más cómodo para
+desarrollar con recarga en caliente):
+
+```bash
+docker-compose up -d postgres  # solo la base de datos
+./mvnw spring-boot:run          # la API en localhost:8080, con devtools
+```
 
 Variables de entorno soportadas (todas con default de desarrollo): `DB_URL`, `DB_USER`, `DB_PASSWORD`,
 `CORS_ALLOWED_ORIGINS`, `JWT_EXPIRATION_MINUTES`.
