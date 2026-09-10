@@ -79,7 +79,13 @@ valida el JWT una sola vez), **una base de datos por servicio**, y **mensajería
 RabbitMQ/Kafka) para casos como "se cerró una consulta → generar resumen con IA → notificar al
 dueño", sin acoplar servicios entre sí de forma síncrona.
 
-## Roles (primera entrega)
+## Dueños y mascotas (segunda fase)
+
+La API permite crear, consultar, listar y editar dueños y mascotas relacionados.
+Los dueños se registran como contactos, sin requerir una cuenta de usuario.
+Consulta el [contrato y las pruebas de esta fase](docs/duenos-mascotas.md).
+
+### Roles de acceso
 
 - `ADMINISTRADOR`
 - `VETERINARIO`
