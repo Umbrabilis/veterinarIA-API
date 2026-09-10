@@ -38,4 +38,20 @@ public class GlobalExceptionHandler {
     private String path(WebRequest request) {
         return request.getDescription(false).replace("uri=", "");
     }
+
+    @ExceptionHandler(RecursoNoEncontradoException.class)
+    public ResponseEntity<ApiError> handleNoEncontrado(RecursoNoEncontradoException ex, WebRequest request) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                new ApiError(404, "Not Found", ex.getMessage(), path(request)));
+    }
+
+    @ExceptionHandler({
+            org.springframework.http.converter.HttpMessageNotReadableException.class,
+            org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class,
+            org.springframework.web.method.annotation.HandlerMethodValidationException.class
+    })
+    public ResponseEntity<ApiError> handlePeticionInvalida(Exception ex, WebRequest request) {
+        return ResponseEntity.badRequest().body(
+                new ApiError(400, "Bad Request", "Formato o parámetros de la petición no válidos", path(request)));
+    }
 }

@@ -46,6 +46,9 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(RUTAS_PUBLICAS).permitAll()
+                        .requestMatchers("/api/v1/duenos", "/api/v1/duenos/**",
+                                "/api/v1/mascotas", "/api/v1/mascotas/**")
+                        .hasAnyRole("ADMINISTRADOR", "VETERINARIO")
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())));
 
