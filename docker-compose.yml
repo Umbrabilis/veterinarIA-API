@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: veterinaria-postgres
+    environment:
+      POSTGRES_DB: veterinaria
+      POSTGRES_USER: veterinaria
+      POSTGRES_PASSWORD: veterinaria
+    ports:
+      - "5432:5432"
+    volumes:
+      - veterinaria-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  veterinaria-postgres-data:
