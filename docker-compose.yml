@@ -1,0 +1,34 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: veterinaria-postgres
+    environment:
+      POSTGRES_DB: veterinaria
+      POSTGRES_USER: veterinaria
+      POSTGRES_PASSWORD: veterinaria
+    ports:
+      - "5432:5432"
+    volumes:
+      - veterinaria-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U veterinaria -d veterinaria"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    container_name: veterinaria-api
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/veterinaria
+      DB_USER: veterinaria
+      DB_PASSWORD: veterinaria
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  veterinaria-postgres-data:
