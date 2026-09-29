@@ -62,9 +62,9 @@ class UsuarioControllerTest {
     }
 
     @Test
-    void registraPropietarioYEditaSuPerfil() {
-        AuthResponse registro = registrar("Laura Gómez", "laura@correo.test", RolUsuario.PROPIETARIO);
-        assertThat(registro.usuario().rol()).isEqualTo(RolUsuario.PROPIETARIO);
+    void registraVeterinarioYEditaSuPerfil() {
+        AuthResponse registro = registrar("Laura Gómez", "laura@correo.test", RolUsuario.VETERINARIO);
+        assertThat(registro.usuario().rol()).isEqualTo(RolUsuario.VETERINARIO);
         String bearer = "Bearer " + registro.accessToken();
 
         UsuarioResponse actualizado = restTestClient.put().uri("/api/v1/usuarios/me")

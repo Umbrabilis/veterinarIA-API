@@ -11,6 +11,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 import tech.veterinaria_api.testing.TestcontainersConfiguration;
@@ -20,6 +21,7 @@ import tech.veterinaria_api.auth.dto.RegisterRequest;
 import tech.veterinaria_api.auth.dto.UsuarioResponse;
 import tech.veterinaria_api.common.ApiError;
 import tech.veterinaria_api.common.RolUsuario;
+import tech.veterinaria_api.usuarios.UsuarioService;
 
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -28,6 +30,12 @@ class AuthControllerTest {
 
     @Autowired
     private RestTestClient restTestClient;
+
+    @Autowired
+    private UsuarioService usuarioService;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     @Test
     void registraLogueaYConsultaElUsuarioAutenticado() {
@@ -146,6 +154,32 @@ class AuthControllerTest {
                 .body(login)
                 .exchange()
                 .expectStatus().isBadRequest()
+                .expectBody(ApiError.class);
+    }
+
+    @Test
+    void noPermiteCrearCuentasDePropietario() {
+        RegisterRequest registro = new RegisterRequest("Laura Gómez", "laura.duena@veterinaria.tech", "password123",
+                RolUsuario.PROPIETARIO);
+
+        restTestClient.post().uri("/api/v1/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(registro)
+                .exchange()
+                .expectStatus().isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT)
+                .expectBody(ApiError.class);
+    }
+
+    @Test
+    void unaCuentaDePropietarioAntiguaNoEntraAlPanel() {
+        usuarioService.crear("Dueño Antiguo", "antiguo@veterinaria.tech", passwordEncoder.encode("password123"),
+                RolUsuario.PROPIETARIO);
+
+        restTestClient.post().uri("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new LoginRequest("antiguo@veterinaria.tech", "password123"))
+                .exchange()
+                .expectStatus().isForbidden()
                 .expectBody(ApiError.class);
     }
 }
