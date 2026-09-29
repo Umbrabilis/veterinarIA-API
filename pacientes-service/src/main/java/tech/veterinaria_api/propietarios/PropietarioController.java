@@ -23,8 +23,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import tech.veterinaria_api.common.PaginaResponse;
+import tech.veterinaria_api.common.Patrones;
 import tech.veterinaria_api.propietarios.dto.ActualizarMisDatosRequest;
 import tech.veterinaria_api.propietarios.dto.CodigoVinculacionResponse;
 import tech.veterinaria_api.propietarios.dto.PropietarioRequest;
@@ -53,7 +56,9 @@ public class PropietarioController {
     @GetMapping
     @PreAuthorize(PERSONAL_CLINICO)
     @Operation(summary = "Lista propietarios; busca por nombre o documento exacto")
-    public PaginaResponse<PropietarioResponse> listar(@RequestParam(required = false) String busqueda,
+    public PaginaResponse<PropietarioResponse> listar(@RequestParam(required = false)
+            @Size(max = 100, message = "La búsqueda no puede superar 100 caracteres")
+            @Pattern(regexp = Patrones.BUSQUEDA, message = "La búsqueda contiene caracteres no permitidos") String busqueda,
             @RequestParam(defaultValue = "0") @Min(0) int pagina,
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int tamano) {
         return PaginaResponse.de(

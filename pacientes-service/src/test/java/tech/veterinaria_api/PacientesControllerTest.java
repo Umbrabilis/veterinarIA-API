@@ -92,15 +92,15 @@ class PacientesControllerTest {
         restTestClient.post().uri("/api/v1/propietarios")
                 .header("Authorization", vet())
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(new PropietarioRequest("Ana", "2002", "3001234567", null, null, false))
+                .body(new PropietarioRequest("Ana", "2002", "3001234567", "ana2002@correo.test", null, false))
                 .exchange()
                 .expectStatus().isBadRequest();
 
-        crearPropietario("2003", null);
+        crearPropietario("2003", "otro2003@correo.test");
         ApiError error = restTestClient.post().uri("/api/v1/propietarios")
                 .header("Authorization", vet())
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(new PropietarioRequest("Otro", "2003", "3001234567", null, null, true))
+                .body(new PropietarioRequest("Otro", "2003", "3001234567", "distinto2003@correo.test", null, true))
                 .exchange()
                 .expectStatus().isEqualTo(409)
                 .expectBody(ApiError.class)

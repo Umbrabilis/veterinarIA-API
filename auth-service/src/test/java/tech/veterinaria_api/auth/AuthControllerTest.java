@@ -3,6 +3,8 @@ package tech.veterinaria_api.auth;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureRestTestClient;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -100,6 +102,50 @@ class AuthControllerTest {
                 .body(login)
                 .exchange()
                 .expectStatus().isUnauthorized()
+                .expectBody(ApiError.class);
+    }
+
+    @ParameterizedTest(name = "{3}")
+    @CsvSource(delimiter = '|', value = {
+            "<img src=x onerror=alert(1)> | html@veterinaria.tech   | password123 | nombre con HTML",
+            "@@@###                        | simbolos@veterinaria.tech | password123 | nombre solo con símbolos",
+            "Ana Gómez                     | ana@dominio               | password123 | correo sin extensión",
+            "Ana Gómez                     | ana gomez@veterinaria.tech | password123 | correo con espacio",
+            "Ana Gómez                     | ana2@veterinaria.tech     | 12345678    | contraseña sin letras",
+            "Ana Gómez                     | ana3@veterinaria.tech     | abcdefgh    | contraseña sin números",
+    })
+    void rechazaRegistroConDatosMalFormados(String nombre, String email, String password, String caso) {
+        RegisterRequest registro = new RegisterRequest(nombre, email, password, RolUsuario.VETERINARIO);
+
+        restTestClient.post().uri("/api/v1/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(registro)
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody(ApiError.class);
+    }
+
+    @Test
+    void aceptaNombresConTildesApostrofosYGuiones() {
+        RegisterRequest registro = new RegisterRequest("María José O'Neil-Peña", "maria.jose@veterinaria.tech",
+                "password123", RolUsuario.VETERINARIO);
+
+        restTestClient.post().uri("/api/v1/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(registro)
+                .exchange()
+                .expectStatus().isCreated();
+    }
+
+    @Test
+    void rechazaLoginConContrasenaDemasiadoLarga() {
+        LoginRequest login = new LoginRequest("ada@veterinaria.tech", "a1".repeat(5000));
+
+        restTestClient.post().uri("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(login)
+                .exchange()
+                .expectStatus().isBadRequest()
                 .expectBody(ApiError.class);
     }
 }
