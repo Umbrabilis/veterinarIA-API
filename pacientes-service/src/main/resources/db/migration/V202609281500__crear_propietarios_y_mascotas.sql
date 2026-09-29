@@ -8,11 +8,16 @@ CREATE TABLE propietarios (
     email                   VARCHAR(255),
     direccion               VARCHAR(255),
     consentimiento_datos_en TIMESTAMPTZ  NOT NULL,
+    codigo_vinculacion_hash VARCHAR(64) UNIQUE,
+    codigo_vinculacion_expira_en TIMESTAMPTZ,
     created_at              TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    updated_at              TIMESTAMPTZ  NOT NULL DEFAULT now()
+    updated_at              TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    CONSTRAINT ck_propietarios_codigo_completo
+        CHECK ((codigo_vinculacion_hash IS NULL) = (codigo_vinculacion_expira_en IS NULL))
 );
 
 COMMENT ON COLUMN propietarios.usuario_id IS 'Cuenta de auth-service (rol PROPIETARIO) vinculada a este propietario';
+COMMENT ON COLUMN propietarios.codigo_vinculacion_hash IS 'SHA-256 del código de un solo uso que la clínica entrega al dueño para vincular su cuenta';
 
 CREATE UNIQUE INDEX ux_propietarios_email ON propietarios (lower(email));
 CREATE INDEX idx_propietarios_nombre ON propietarios (lower(nombre));

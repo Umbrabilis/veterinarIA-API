@@ -1,6 +1,5 @@
 package tech.veterinaria_api.remoto;
 
-import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -24,17 +23,6 @@ public class PacientesHttpClient implements PacientesClient {
             return restClient.get().uri("/api/v1/mascotas/{id}", mascotaId).retrieve().body(MascotaRemota.class);
         } catch (RecursoNoEncontradoException e) {
             throw new RecursoNoEncontradoException("Mascota no encontrada");
-        }
-    }
-
-    @Override
-    public Optional<UUID> miPropietarioId() {
-        try {
-            PropietarioRemoto propietario = restClient.get().uri("/api/v1/propietarios/me").retrieve()
-                    .body(PropietarioRemoto.class);
-            return Optional.ofNullable(propietario).map(PropietarioRemoto::id);
-        } catch (RecursoNoEncontradoException e) {
-            return Optional.empty();
         }
     }
 

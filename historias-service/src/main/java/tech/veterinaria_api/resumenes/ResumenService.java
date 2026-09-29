@@ -9,7 +9,9 @@ import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import tech.veterinaria_api.common.AccesoDenegadoException;
 import tech.veterinaria_api.common.ConflictoException;
@@ -37,16 +39,21 @@ public class ResumenService {
     private final PacientesClient pacientesClient;
     private final GeneradorResumen generador;
     private final NotificadorResumen notificador;
+    private final TransactionTemplate transaccion;
     private final ZoneId zona;
+
+    private static final String MENSAJE_SIN_APROBACION =
+            "El resumen debe estar aprobado por el veterinario antes de enviarse";
 
     public ResumenService(ResumenConsultaRepository resumenRepository, ConsultaService consultaService,
             PacientesClient pacientesClient, GeneradorResumen generador, NotificadorResumen notificador,
-            @Value("${app.zona-horaria:America/Bogota}") String zona) {
+            PlatformTransactionManager transactionManager, @Value("${app.zona-horaria:America/Bogota}") String zona) {
         this.resumenRepository = resumenRepository;
         this.consultaService = consultaService;
         this.pacientesClient = pacientesClient;
         this.generador = generador;
         this.notificador = notificador;
+        this.transaccion = new TransactionTemplate(transactionManager);
         this.zona = ZoneId.of(zona);
     }
 
@@ -100,24 +107,31 @@ public class ResumenService {
     }
 
     /**
-     * Único camino hacia el dueño. Exige APROBADO antes de tocar el notificador. Primero se envía y luego se marca
-     * ENVIADO: si el correo falla, el resumen sigue APROBADO y se puede reintentar.
+     * Único camino hacia el dueño. Exige APROBADO antes de tocar el notificador. El destinatario es el dueño
+     * actual de la mascota. El envío ocurre con la fila bloqueada: dos peticiones simultáneas no envían dos
+     * correos (la segunda espera y encuentra ENVIADO). Si el correo falla, la transacción se revierte y el
+     * resumen sigue APROBADO para reintentar.
      */
     public ResumenConsulta enviar(UUID id, UsuarioActual usuario) {
-        ResumenConsulta resumen = buscar(id);
-        exigirVeterinarioDe(resumen.getVeterinarioId(), usuario);
-        exigirEstado(resumen, EstadoResumen.APROBADO, "El resumen debe estar aprobado por el veterinario antes de enviarse");
+        ResumenConsulta previo = buscar(id);
+        exigirVeterinarioDe(previo.getVeterinarioId(), usuario);
+        exigirEstado(previo, EstadoResumen.APROBADO, MENSAJE_SIN_APROBACION);
 
-        Consulta consulta = consultaService.buscar(resumen.getConsultaId());
-        PropietarioRemoto propietario = pacientesClient.obtenerPropietario(consulta.getPropietarioId());
+        Consulta consulta = consultaService.buscar(previo.getConsultaId());
+        MascotaRemota mascota = pacientesClient.obtenerMascota(consulta.getMascotaId());
+        PropietarioRemoto propietario = pacientesClient.obtenerPropietario(mascota.propietarioId());
         if (propietario.email() == null || propietario.email().isBlank()) {
             throw new ReglaNegocioException("El propietario no tiene email registrado");
         }
-        MascotaRemota mascota = pacientesClient.obtenerMascota(consulta.getMascotaId());
 
-        notificador.enviar(propietario.email(), propietario.nombre(), mascota.nombre(), resumen.contenidoFinal());
-        resumen.marcarEnviado(Instant.now());
-        return resumenRepository.saveAndFlush(resumen);
+        return transaccion.execute(estado -> {
+            ResumenConsulta resumen = resumenRepository.bloquear(id)
+                    .orElseThrow(() -> new RecursoNoEncontradoException("Resumen no encontrado"));
+            exigirEstado(resumen, EstadoResumen.APROBADO, MENSAJE_SIN_APROBACION);
+            notificador.enviar(propietario.email(), propietario.nombre(), mascota.nombre(), resumen.contenidoFinal());
+            resumen.marcarEnviado(Instant.now());
+            return resumen;
+        });
     }
 
     /** Personal de la clínica: siempre. Propietario: solo si ya se le envió y la consulta es de su mascota. */
@@ -150,13 +164,11 @@ public class ResumenService {
         if (usuario.esPersonalClinico()) {
             return;
         }
-        if (usuario.esPropietario() && resumen.getEstado() == EstadoResumen.ENVIADO) {
-            UUID propietarioConsulta = consultaService.buscar(resumen.getConsultaId()).getPropietarioId();
-            if (pacientesClient.miPropietarioId().map(propietarioConsulta::equals).orElse(false)) {
-                return;
-            }
+        if (!usuario.esPropietario() || resumen.getEstado() != EstadoResumen.ENVIADO) {
+            throw new AccesoDenegadoException();
         }
-        throw new AccesoDenegadoException();
+        // Pertenencia actual de la mascota (403 si ya no es suya).
+        pacientesClient.obtenerMascota(consultaService.buscar(resumen.getConsultaId()).getMascotaId());
     }
 
     private ResumenConsulta buscar(UUID id) {

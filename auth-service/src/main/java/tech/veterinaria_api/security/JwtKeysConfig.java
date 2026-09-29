@@ -18,6 +18,7 @@ import org.springframework.core.io.ResourceLoader;
 import org.springframework.security.converter.RsaKeyConverters;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 
@@ -38,6 +39,9 @@ import com.nimbusds.jose.proc.SecurityContext;
  */
 @Configuration
 public class JwtKeysConfig {
+
+    /** Emisor de los JWT; los demás servicios lo validan (spring.security.oauth2.resourceserver.jwt.issuer-uri). */
+    public static final String ISSUER = "veterinaria-api";
 
     private static final Logger log = LoggerFactory.getLogger(JwtKeysConfig.class);
 
@@ -97,6 +101,8 @@ public class JwtKeysConfig {
 
     @Bean
     public JwtDecoder jwtDecoder(KeyPair jwtKeyPair) {
-        return NimbusJwtDecoder.withPublicKey((RSAPublicKey) jwtKeyPair.getPublic()).build();
+        NimbusJwtDecoder decoder = NimbusJwtDecoder.withPublicKey((RSAPublicKey) jwtKeyPair.getPublic()).build();
+        decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(ISSUER));
+        return decoder;
     }
 }

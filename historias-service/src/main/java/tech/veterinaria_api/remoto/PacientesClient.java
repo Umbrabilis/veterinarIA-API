@@ -2,7 +2,6 @@ package tech.veterinaria_api.remoto;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -12,9 +11,6 @@ import java.util.UUID;
 public interface PacientesClient {
 
     MascotaRemota obtenerMascota(UUID mascotaId);
-
-    /** Id del propietario de la cuenta autenticada, o vacío si aún no tiene registro en la clínica. */
-    Optional<UUID> miPropietarioId();
 
     /** Datos de contacto del propietario. Solo para notificarle; nunca se envían al modelo de IA. */
     PropietarioRemoto obtenerPropietario(UUID propietarioId);

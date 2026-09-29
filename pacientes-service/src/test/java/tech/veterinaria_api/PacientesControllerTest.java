@@ -23,8 +23,10 @@ import tech.veterinaria_api.mascotas.Sexo;
 import tech.veterinaria_api.mascotas.dto.MascotaRequest;
 import tech.veterinaria_api.mascotas.dto.MascotaResponse;
 import tech.veterinaria_api.propietarios.dto.ActualizarMisDatosRequest;
+import tech.veterinaria_api.propietarios.dto.CodigoVinculacionResponse;
 import tech.veterinaria_api.propietarios.dto.PropietarioRequest;
 import tech.veterinaria_api.propietarios.dto.PropietarioResponse;
+import tech.veterinaria_api.propietarios.dto.VincularCuentaRequest;
 import tech.veterinaria_api.testing.JwtDePruebaConfiguration;
 import tech.veterinaria_api.testing.TestcontainersConfiguration;
 import tech.veterinaria_api.testing.TokensDePrueba;
@@ -108,17 +110,47 @@ class PacientesControllerTest {
     }
 
     @Test
-    void elPropietarioVeSoloSusMascotasYSeVinculaPorEmail() {
+    void registrarseConElEmailDeOtroNoDaAccesoASusDatos() {
+        crearPropietario("4001", "victima@correo.test");
+
+        // Cuenta nueva con el email de la víctima: sin código de la clínica no queda vinculada a nada.
+        String atacante = tokens.bearer(UUID.randomUUID(), "victima@correo.test", RolUsuario.PROPIETARIO);
+        restTestClient.get().uri("/api/v1/propietarios/me")
+                .header("Authorization", atacante)
+                .exchange()
+                .expectStatus().isNotFound();
+        restTestClient.post().uri("/api/v1/propietarios/me/vincular")
+                .header("Authorization", atacante)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new VincularCuentaRequest("ABCDEFGHJK"))
+                .exchange()
+                .expectStatus().isEqualTo(422);
+    }
+
+    @Test
+    void elPropietarioVinculaSuCuentaConCodigoYVeSoloSusMascotas() {
         PropietarioResponse propio = crearPropietario("3001", "duena@correo.test");
         PropietarioResponse ajeno = crearPropietario("3002", "otro@correo.test");
         MascotaResponse miMascota = crearMascota(propio.id(), "Luna");
         MascotaResponse mascotaAjena = crearMascota(ajeno.id(), "Rocky");
 
-        UUID usuarioId = UUID.randomUUID();
-        String duena = tokens.bearer(usuarioId, "Duena@correo.test", RolUsuario.PROPIETARIO);
+        CodigoVinculacionResponse codigo = restTestClient.post()
+                .uri("/api/v1/propietarios/{id}/codigo-vinculacion", propio.id())
+                .header("Authorization", vet())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(CodigoVinculacionResponse.class)
+                .returnResult()
+                .getResponseBody();
+        assertThat(codigo.codigo()).hasSize(10);
 
-        PropietarioResponse yo = restTestClient.get().uri("/api/v1/propietarios/me")
+        UUID usuarioId = UUID.randomUUID();
+        String duena = tokens.bearer(usuarioId, "duena@correo.test", RolUsuario.PROPIETARIO);
+
+        PropietarioResponse yo = restTestClient.post().uri("/api/v1/propietarios/me/vincular")
                 .header("Authorization", duena)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new VincularCuentaRequest(codigo.codigo().toLowerCase()))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody(PropietarioResponse.class)
@@ -126,6 +158,19 @@ class PacientesControllerTest {
                 .getResponseBody();
         assertThat(yo.id()).isEqualTo(propio.id());
         assertThat(yo.usuarioId()).isEqualTo(usuarioId);
+
+        // El código es de un solo uso.
+        restTestClient.post().uri("/api/v1/propietarios/me/vincular")
+                .header("Authorization", tokens.bearer(UUID.randomUUID(), "x@correo.test", RolUsuario.PROPIETARIO))
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new VincularCuentaRequest(codigo.codigo()))
+                .exchange()
+                .expectStatus().isEqualTo(422);
+
+        restTestClient.get().uri("/api/v1/propietarios/me")
+                .header("Authorization", duena)
+                .exchange()
+                .expectStatus().isOk();
 
         List<MascotaResponse> mias = restTestClient.get().uri("/api/v1/mascotas/mias")
                 .header("Authorization", duena)

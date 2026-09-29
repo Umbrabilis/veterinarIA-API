@@ -134,15 +134,18 @@ public class CitaService {
         return guardar(cita);
     }
 
+    /**
+     * El propietario accede si la mascota es suya HOY: se pregunta a pacientes-service (403 si no), en lugar de
+     * confiar en el propietario copiado al agendar, que queda desactualizado si la mascota cambia de dueño.
+     */
     private void verificarAcceso(Cita cita, UsuarioActual usuario) {
         if (usuario.esPersonalClinico()) {
             return;
         }
-        boolean esSuya = usuario.esPropietario()
-                && pacientesClient.miPropietarioId().map(cita.getPropietarioId()::equals).orElse(false);
-        if (!esSuya) {
+        if (!usuario.esPropietario()) {
             throw new AccesoDenegadoException();
         }
+        pacientesClient.obtenerMascota(cita.getMascotaId());
     }
 
     private Cita guardar(Cita cita) {

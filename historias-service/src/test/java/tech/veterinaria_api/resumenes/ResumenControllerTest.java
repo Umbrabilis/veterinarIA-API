@@ -11,7 +11,6 @@ import static org.mockito.Mockito.verify;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.Optional;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -138,13 +137,14 @@ class ResumenControllerTest {
         assertThatThrownBy(() -> jdbcTemplate.update(
                 "UPDATE resumenes_consulta SET generado_hallazgos = 'otro' WHERE id = ?", borrador.id()))
                 .isInstanceOf(DataAccessException.class);
+        assertThatThrownBy(() -> jdbcTemplate.execute("TRUNCATE resumenes_consulta"))
+                .isInstanceOf(DataAccessException.class);
     }
 
     @Test
     void elVeterinarioEditaApruebaYEnviaYElDuenoLoVeSoloAlFinal() {
         ResumenResponse borrador = cerrarConsultaYObtenerBorrador();
         String dueno = tokens.bearer(UUID.randomUUID(), "carlos@correo.test", RolUsuario.PROPIETARIO);
-        given(pacientesClient.miPropietarioId()).willReturn(Optional.of(propietarioId));
 
         restTestClient.get().uri("/api/v1/resumenes/{id}", borrador.id())
                 .header("Authorization", dueno)

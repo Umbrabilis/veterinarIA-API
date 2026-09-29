@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.MessageSourceResolvable;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 /**
@@ -35,6 +37,14 @@ public class GlobalExceptionHandler {
         List<String> todos = new java.util.ArrayList<>(detalles);
         todos.addAll(globales);
         return construir(HttpStatus.BAD_REQUEST, "Los datos enviados no son válidos", request, todos);
+    }
+
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<ApiError> handleValidacionParametros(HandlerMethodValidationException ex,
+            WebRequest request) {
+        // Solo los mensajes: nunca el valor rechazado.
+        List<String> detalles = ex.getAllErrors().stream().map(MessageSourceResolvable::getDefaultMessage).toList();
+        return construir(HttpStatus.BAD_REQUEST, "Los parámetros enviados no son válidos", request, detalles);
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)

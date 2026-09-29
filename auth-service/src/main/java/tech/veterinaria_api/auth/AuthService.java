@@ -17,6 +17,7 @@ import tech.veterinaria_api.auth.dto.AuthResponse;
 import tech.veterinaria_api.auth.dto.LoginRequest;
 import tech.veterinaria_api.auth.dto.RegisterRequest;
 import tech.veterinaria_api.auth.dto.UsuarioResponse;
+import tech.veterinaria_api.security.JwtKeysConfig;
 import tech.veterinaria_api.usuarios.Usuario;
 import tech.veterinaria_api.usuarios.UsuarioService;
 
@@ -32,20 +33,26 @@ public class AuthService {
     private long expirationMinutes;
 
     public AuthResponse registrar(RegisterRequest request) {
-        if (usuarioService.existePorEmail(request.email())) {
+        String email = normalizarEmail(request.email());
+        if (usuarioService.existePorEmail(email)) {
             throw new EmailYaRegistradoException();
         }
         String passwordHash = passwordEncoder.encode(request.password());
-        Usuario usuario = usuarioService.crear(request.nombre(), request.email(), passwordHash, request.rol());
+        Usuario usuario = usuarioService.crear(request.nombre().trim(), email, passwordHash, request.rol());
         return emitirToken(usuario);
     }
 
     public AuthResponse login(LoginRequest request) {
-        Usuario usuario = usuarioService.buscarPorEmail(request.email())
+        Usuario usuario = usuarioService.buscarPorEmail(normalizarEmail(request.email()))
                 .filter(Usuario::isActivo)
                 .filter(u -> passwordEncoder.matches(request.password(), u.getPasswordHash()))
                 .orElseThrow(CredencialesInvalidasException::new);
         return emitirToken(usuario);
+    }
+
+    /** Un mismo correo con distintas mayúsculas no puede crear dos cuentas. */
+    private static String normalizarEmail(String email) {
+        return email.trim().toLowerCase(java.util.Locale.ROOT);
     }
 
     private AuthResponse emitirToken(Usuario usuario) {
@@ -53,7 +60,7 @@ public class AuthService {
         Instant expiracion = ahora.plus(expirationMinutes, ChronoUnit.MINUTES);
 
         JwtClaimsSet claims = JwtClaimsSet.builder()
-                .issuer("veterinaria-api")
+                .issuer(JwtKeysConfig.ISSUER)
                 .issuedAt(ahora)
                 .expiresAt(expiracion)
                 .subject(usuario.getEmail())

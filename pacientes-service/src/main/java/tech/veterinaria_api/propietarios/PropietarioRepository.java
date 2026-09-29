@@ -13,7 +13,7 @@ public interface PropietarioRepository extends JpaRepository<Propietario, UUID> 
 
     Optional<Propietario> findByUsuarioId(UUID usuarioId);
 
-    Optional<Propietario> findByEmailIgnoreCaseAndUsuarioIdIsNull(String email);
+    Optional<Propietario> findByCodigoVinculacionHash(String codigoVinculacionHash);
 
     boolean existsByDocumento(String documento);
 

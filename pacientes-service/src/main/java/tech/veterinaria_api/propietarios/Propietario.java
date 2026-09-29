@@ -47,6 +47,12 @@ public class Propietario {
     @Column(name = "consentimiento_datos_en", nullable = false)
     private Instant consentimientoDatosEn;
 
+    @Column(name = "codigo_vinculacion_hash", length = 64)
+    private String codigoVinculacionHash;
+
+    @Column(name = "codigo_vinculacion_expira_en")
+    private Instant codigoVinculacionExpiraEn;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

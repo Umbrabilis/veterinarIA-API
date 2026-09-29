@@ -32,7 +32,9 @@ CREATE TABLE resumenes_consulta (
             AND final_cuidados IS NOT NULL AND final_proxima_visita IS NOT NULL)),
     CONSTRAINT ck_resumenes_borrador_sin_aprobacion CHECK (
         estado <> 'BORRADOR' OR (aprobado_por IS NULL AND aprobado_en IS NULL)),
-    CONSTRAINT ck_resumenes_envio CHECK ((estado = 'ENVIADO') = (enviado_en IS NOT NULL))
+    CONSTRAINT ck_resumenes_envio CHECK ((estado = 'ENVIADO') = (enviado_en IS NOT NULL)),
+    -- Aprueba el veterinario que atendió la consulta.
+    CONSTRAINT ck_resumenes_aprueba_su_veterinario CHECK (aprobado_por IS NULL OR aprobado_por = veterinario_id)
 );
 
 COMMENT ON COLUMN resumenes_consulta.generado_hallazgos IS 'Texto tal como lo generó el modelo (no se modifica)';
@@ -47,6 +49,10 @@ BEGIN
             RAISE EXCEPTION 'Un resumen nace como BORRADOR; requiere aprobación del veterinario'
                 USING ERRCODE = 'integrity_constraint_violation';
         END IF;
+        IF NOT EXISTS (SELECT 1 FROM consultas WHERE id = NEW.consulta_id AND estado = 'CERRADA') THEN
+            RAISE EXCEPTION 'El resumen se genera sobre una consulta cerrada (consulta %)', NEW.consulta_id
+                USING ERRCODE = 'integrity_constraint_violation';
+        END IF;
         RETURN NEW;
     END IF;
 
@@ -55,7 +61,9 @@ BEGIN
             USING ERRCODE = 'integrity_constraint_violation';
     END IF;
 
-    IF NEW.consulta_id IS DISTINCT FROM OLD.consulta_id
+    IF NEW.id IS DISTINCT FROM OLD.id
+        OR NEW.created_at IS DISTINCT FROM OLD.created_at
+        OR NEW.consulta_id IS DISTINCT FROM OLD.consulta_id
         OR NEW.veterinario_id IS DISTINCT FROM OLD.veterinario_id
         OR NEW.modelo IS DISTINCT FROM OLD.modelo
         OR NEW.version_prompt IS DISTINCT FROM OLD.version_prompt
@@ -92,8 +100,12 @@ BEGIN
 
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public, pg_temp;
 
 CREATE TRIGGER trg_resumenes_aprobacion_obligatoria
     BEFORE INSERT OR UPDATE OR DELETE ON resumenes_consulta
     FOR EACH ROW EXECUTE FUNCTION proteger_resumen_consulta();
+
+CREATE TRIGGER trg_resumenes_no_truncate
+    BEFORE TRUNCATE ON resumenes_consulta
+    FOR EACH STATEMENT EXECUTE FUNCTION impedir_truncate_registro_clinico();

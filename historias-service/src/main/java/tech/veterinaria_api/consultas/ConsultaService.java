@@ -89,11 +89,11 @@ public class ConsultaService {
         if (usuario.esPersonalClinico()) {
             return consulta;
         }
-        boolean esSuya = usuario.esPropietario() && consulta.estaCerrada()
-                && pacientesClient.miPropietarioId().map(consulta.getPropietarioId()::equals).orElse(false);
-        if (!esSuya) {
+        if (!usuario.esPropietario() || !consulta.estaCerrada()) {
             throw new AccesoDenegadoException();
         }
+        // Pertenencia actual de la mascota (403 si ya no es suya), no el propietario copiado en la consulta.
+        pacientesClient.obtenerMascota(consulta.getMascotaId());
         return consulta;
     }
 

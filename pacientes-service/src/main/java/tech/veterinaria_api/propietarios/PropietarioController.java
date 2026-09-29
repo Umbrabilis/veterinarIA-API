@@ -26,8 +26,10 @@ import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import tech.veterinaria_api.common.PaginaResponse;
 import tech.veterinaria_api.propietarios.dto.ActualizarMisDatosRequest;
+import tech.veterinaria_api.propietarios.dto.CodigoVinculacionResponse;
 import tech.veterinaria_api.propietarios.dto.PropietarioRequest;
 import tech.veterinaria_api.propietarios.dto.PropietarioResponse;
+import tech.veterinaria_api.propietarios.dto.VincularCuentaRequest;
 import tech.veterinaria_api.security.UsuarioActual;
 
 @RestController
@@ -72,6 +74,21 @@ public class PropietarioController {
     public PropietarioResponse actualizarMiPerfil(@AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody ActualizarMisDatosRequest request) {
         return PropietarioResponse.de(propietarioService.actualizarMio(UsuarioActual.de(jwt), request));
+    }
+
+    @PostMapping("/me/vincular")
+    @PreAuthorize("hasRole('PROPIETARIO')")
+    @Operation(summary = "Vincula la cuenta autenticada con su registro usando el código que entregó la clínica")
+    public PropietarioResponse vincular(@AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody VincularCuentaRequest request) {
+        return PropietarioResponse.de(propietarioService.vincularCuenta(UsuarioActual.de(jwt), request.codigo()));
+    }
+
+    @PostMapping("/{id}/codigo-vinculacion")
+    @PreAuthorize(PERSONAL_CLINICO)
+    @Operation(summary = "Genera un código de un solo uso (7 días) para que el dueño vincule su cuenta")
+    public CodigoVinculacionResponse codigoVinculacion(@PathVariable UUID id) {
+        return CodigoVinculacionResponse.de(propietarioService.generarCodigoVinculacion(id));
     }
 
     @GetMapping("/{id}")

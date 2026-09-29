@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.Period;
 import java.time.format.DateTimeFormatter;
+import java.util.regex.Pattern;
 
 import tech.veterinaria_api.consultas.Consulta;
 import tech.veterinaria_api.remoto.PacientesClient.MascotaRemota;
@@ -29,6 +30,10 @@ public record DatosParaResumen(
         LocalDate proximoControl
 ) {
     private static final DateTimeFormatter FECHA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final String OMITIDO = "[dato omitido]";
+    private static final Pattern EMAIL = Pattern.compile("[^\\s@]+@[^\\s@]+");
+    // 7 o más dígitos, con separadores de espacio, punto o guion: 3001234567, 300 123 4567, 1.020.304.050.
+    private static final Pattern NUMERO_LARGO = Pattern.compile("\\+?\\d(?:[\\s.-]?\\d){6,}");
 
     public static DatosParaResumen de(Consulta consulta, MascotaRemota mascota, LocalDate hoy) {
         return new DatosParaResumen(mascota.nombre(), mascota.especie(), mascota.raza(), mascota.sexo(),
@@ -70,12 +75,17 @@ public record DatosParaResumen(
                 proximoControl == null ? "no indicado" : proximoControlTexto());
     }
 
-    /** Evita que un texto clínico cierre el delimitador y se salga del bloque de datos. */
-    private static String limpio(String valor) {
+    /**
+     * Texto libre escrito por el veterinario: se enmascaran correos y secuencias largas de dígitos (teléfonos,
+     * documentos) por si mencionó datos del dueño, y se neutralizan los delimitadores para que el texto no
+     * pueda cerrar el bloque de datos.
+     */
+    static String limpio(String valor) {
         if (valor == null || valor.isBlank()) {
             return "no registrado";
         }
-        return valor.replace("<", "‹").replace(">", "›").trim();
+        String sinDatos = NUMERO_LARGO.matcher(EMAIL.matcher(valor).replaceAll(OMITIDO)).replaceAll(OMITIDO);
+        return sinDatos.replace("<", "‹").replace(">", "›").trim();
     }
 
     private static String edad(LocalDate nacimiento, LocalDate hoy) {

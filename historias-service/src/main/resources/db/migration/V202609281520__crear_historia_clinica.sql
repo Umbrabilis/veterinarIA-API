@@ -1,6 +1,8 @@
 -- Historia clínica. Regla de negocio: es inmutable. Una consulta cerrada no se edita ni se borra; se corrige
 -- con una enmienda que registra quién y cuándo. Las enmiendas y las vacunas aplicadas solo se insertan.
--- Los triggers hacen cumplir la regla aunque alguien escriba en la base de datos sin pasar por la API.
+-- Los triggers hacen cumplir la regla aunque alguien escriba en la base de datos sin pasar por la API
+-- (incluido TRUNCATE). La aplicación debe conectarse con un rol que no sea dueño de las tablas, para que no
+-- pueda desactivar los triggers (ver docker/postgres/init).
 
 CREATE TABLE consultas (
     id              UUID PRIMARY KEY,
@@ -70,9 +72,13 @@ BEGIN
         RAISE EXCEPTION 'La consulta % está cerrada: no se edita, se enmienda', OLD.id
             USING ERRCODE = 'integrity_constraint_violation';
     END IF;
+    IF NEW.id IS DISTINCT FROM OLD.id OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN
+        RAISE EXCEPTION 'El id y la fecha de creación de una consulta no cambian (consulta %)', OLD.id
+            USING ERRCODE = 'integrity_constraint_violation';
+    END IF;
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public, pg_temp;
 
 CREATE TRIGGER trg_consultas_inmutables
     BEFORE UPDATE OR DELETE ON consultas
@@ -84,7 +90,7 @@ BEGIN
     RAISE EXCEPTION 'El registro clínico % de % no se modifica ni se elimina', OLD.id, TG_TABLE_NAME
         USING ERRCODE = 'integrity_constraint_violation';
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public, pg_temp;
 
 CREATE TRIGGER trg_enmiendas_solo_insercion
     BEFORE UPDATE OR DELETE ON enmiendas
@@ -103,8 +109,28 @@ BEGIN
     END IF;
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SET search_path = public, pg_temp;
 
 CREATE TRIGGER trg_enmiendas_consulta_cerrada
     BEFORE INSERT ON enmiendas
     FOR EACH ROW EXECUTE FUNCTION exigir_consulta_cerrada_para_enmienda();
+
+-- Los triggers FOR EACH ROW no se disparan con TRUNCATE: se bloquea por sentencia.
+CREATE FUNCTION impedir_truncate_registro_clinico() RETURNS trigger AS $$
+BEGIN
+    RAISE EXCEPTION 'La tabla % es registro clínico: no se trunca', TG_TABLE_NAME
+        USING ERRCODE = 'integrity_constraint_violation';
+END;
+$$ LANGUAGE plpgsql SET search_path = public, pg_temp;
+
+CREATE TRIGGER trg_consultas_no_truncate
+    BEFORE TRUNCATE ON consultas
+    FOR EACH STATEMENT EXECUTE FUNCTION impedir_truncate_registro_clinico();
+
+CREATE TRIGGER trg_enmiendas_no_truncate
+    BEFORE TRUNCATE ON enmiendas
+    FOR EACH STATEMENT EXECUTE FUNCTION impedir_truncate_registro_clinico();
+
+CREATE TRIGGER trg_vacunas_no_truncate
+    BEFORE TRUNCATE ON vacunas
+    FOR EACH STATEMENT EXECUTE FUNCTION impedir_truncate_registro_clinico();

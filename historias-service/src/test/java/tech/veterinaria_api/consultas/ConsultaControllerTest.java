@@ -4,11 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -150,6 +150,11 @@ class ConsultaControllerTest {
         assertThatThrownBy(() -> jdbcTemplate.update("UPDATE enmiendas SET contenido = 'x' WHERE consulta_id = ?",
                 consulta.id())).isInstanceOf(DataAccessException.class);
 
+        assertThatThrownBy(() -> jdbcTemplate.execute("TRUNCATE consultas CASCADE"))
+                .isInstanceOf(DataAccessException.class);
+        assertThatThrownBy(() -> jdbcTemplate.execute("TRUNCATE vacunas"))
+                .isInstanceOf(DataAccessException.class);
+
         String diagnostico = jdbcTemplate.queryForObject("SELECT diagnostico FROM consultas WHERE id = ?",
                 String.class, consulta.id());
         assertThat(diagnostico).isEqualTo("Otitis externa");
@@ -189,7 +194,6 @@ class ConsultaControllerTest {
 
         UUID usuarioDueno = UUID.randomUUID();
         String dueno = tokens.bearer(usuarioDueno, "dueno@correo.test", RolUsuario.PROPIETARIO);
-        given(pacientesClient.miPropietarioId()).willReturn(Optional.of(propietarioId));
 
         List<ConsultaResponse> historia = restTestClient.get().uri("/api/v1/consultas?mascotaId={id}", mascotaId)
                 .header("Authorization", dueno)
@@ -206,14 +210,17 @@ class ConsultaControllerTest {
                 .exchange()
                 .expectStatus().isForbidden();
 
-        // Otro propietario no ve la consulta aunque conozca el id.
-        given(pacientesClient.miPropietarioId()).willReturn(Optional.of(UUID.randomUUID()));
+        restTestClient.get().uri("/api/v1/consultas/{id}", cerrada.id())
+                .header("Authorization", dueno)
+                .exchange()
+                .expectStatus().isOk();
+
+        // Si la mascota no es suya (otro dueño, o cambió de dueño) no ve la consulta aunque conozca el id.
+        willThrow(new AccesoDenegadoException()).given(pacientesClient).obtenerMascota(any());
         restTestClient.get().uri("/api/v1/consultas/{id}", cerrada.id())
                 .header("Authorization", dueno)
                 .exchange()
                 .expectStatus().isForbidden();
-
-        given(pacientesClient.obtenerMascota(any())).willThrow(new AccesoDenegadoException());
         restTestClient.get().uri("/api/v1/consultas?mascotaId={id}", mascotaId)
                 .header("Authorization", dueno)
                 .exchange()

@@ -1,5 +1,6 @@
 package tech.veterinaria_api.propietarios;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -12,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import tech.veterinaria_api.common.AccesoDenegadoException;
 import tech.veterinaria_api.common.ConflictoException;
 import tech.veterinaria_api.common.RecursoNoEncontradoException;
+import tech.veterinaria_api.common.ReglaNegocioException;
 import tech.veterinaria_api.propietarios.dto.ActualizarMisDatosRequest;
 import tech.veterinaria_api.propietarios.dto.PropietarioRequest;
 import tech.veterinaria_api.security.UsuarioActual;
@@ -19,6 +21,8 @@ import tech.veterinaria_api.security.UsuarioActual;
 @Service
 @RequiredArgsConstructor
 public class PropietarioService {
+
+    private static final Duration VIGENCIA_CODIGO = Duration.ofDays(7);
 
     private final PropietarioRepository propietarioRepository;
 
@@ -74,23 +78,51 @@ public class PropietarioService {
         throw new AccesoDenegadoException();
     }
 
-    /**
-     * Registro de propietario de la cuenta autenticada. La primera vez se vincula por email con el registro
-     * que creó la clínica; desde entonces se resuelve por {@code usuario_id}.
-     */
-    @Transactional
+    /** Registro de propietario vinculado a la cuenta autenticada (ver {@link #vincularCuenta}). */
+    @Transactional(readOnly = true)
     public Propietario obtenerMio(UsuarioActual usuario) {
         if (!usuario.esPropietario()) {
             throw new AccesoDenegadoException("Solo las cuentas de propietario tienen este recurso");
         }
         return propietarioRepository.findByUsuarioId(usuario.id())
-                .or(() -> propietarioRepository.findByEmailIgnoreCaseAndUsuarioIdIsNull(usuario.email())
-                        .map(p -> {
-                            p.setUsuarioId(usuario.id());
-                            return p;
-                        }))
                 .orElseThrow(() -> new RecursoNoEncontradoException(
-                        "Aún no tienes un registro de propietario en la clínica"));
+                        "Tu cuenta aún no está vinculada a un registro de la clínica"));
+    }
+
+    /**
+     * La clínica genera un código de un solo uso y se lo entrega al dueño (en persona o a su correo registrado).
+     * No se vincula por email: el email de una cuenta nueva no está verificado y cualquiera podría registrarse
+     * con el de otra persona para ver sus datos y la historia clínica de sus mascotas.
+     */
+    @Transactional
+    public CodigoVinculacion generarCodigoVinculacion(UUID id) {
+        Propietario propietario = buscar(id);
+        if (propietario.getUsuarioId() != null) {
+            throw new ConflictoException("El propietario ya tiene una cuenta vinculada");
+        }
+        String codigo = CodigoVinculacion.nuevoCodigo();
+        Instant expiraEn = Instant.now().plus(VIGENCIA_CODIGO);
+        propietario.setCodigoVinculacionHash(CodigoVinculacion.hash(codigo));
+        propietario.setCodigoVinculacionExpiraEn(expiraEn);
+        return new CodigoVinculacion(codigo, expiraEn);
+    }
+
+    @Transactional
+    public Propietario vincularCuenta(UsuarioActual usuario, String codigo) {
+        if (!usuario.esPropietario()) {
+            throw new AccesoDenegadoException("Solo las cuentas de propietario se vinculan");
+        }
+        if (propietarioRepository.findByUsuarioId(usuario.id()).isPresent()) {
+            throw new ConflictoException("Tu cuenta ya está vinculada a un registro de la clínica");
+        }
+        Propietario propietario = propietarioRepository.findByCodigoVinculacionHash(CodigoVinculacion.hash(codigo))
+                .filter(p -> p.getUsuarioId() == null)
+                .filter(p -> p.getCodigoVinculacionExpiraEn().isAfter(Instant.now()))
+                .orElseThrow(() -> new ReglaNegocioException("El código de vinculación no es válido o ya venció"));
+        propietario.setUsuarioId(usuario.id());
+        propietario.setCodigoVinculacionHash(null);
+        propietario.setCodigoVinculacionExpiraEn(null);
+        return propietario;
     }
 
     @Transactional

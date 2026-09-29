@@ -3,6 +3,8 @@ package tech.veterinaria_api;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willReturn;
+import static org.mockito.BDDMockito.willThrow;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -152,7 +154,7 @@ class CitaControllerTest {
         // Otro propietario no puede ver ni cancelar la cita cambiando el id en la URL.
         UUID otroUsuario = UUID.randomUUID();
         String otro = tokens.bearer(otroUsuario, "otro@correo.test", RolUsuario.PROPIETARIO);
-        given(pacientesClient.miPropietarioId()).willReturn(Optional.of(UUID.randomUUID()));
+        willThrow(new AccesoDenegadoException()).given(pacientesClient).obtenerMascota(mascotaId);
         restTestClient.get().uri("/api/v1/citas/{id}", cita.id())
                 .header("Authorization", otro)
                 .exchange()
@@ -162,7 +164,8 @@ class CitaControllerTest {
                 .exchange()
                 .expectStatus().isForbidden();
 
-        given(pacientesClient.miPropietarioId()).willReturn(Optional.of(propietarioId));
+        willReturn(new MascotaRemota(mascotaId, propietarioId, "Luna", true)).given(pacientesClient)
+                .obtenerMascota(mascotaId);
         CitaResponse cancelada = restTestClient.patch().uri("/api/v1/citas/{id}/cancelar", cita.id())
                 .header("Authorization", duena())
                 .exchange()

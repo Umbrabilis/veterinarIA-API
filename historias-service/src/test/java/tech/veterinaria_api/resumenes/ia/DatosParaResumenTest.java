@@ -39,4 +39,13 @@ class DatosParaResumenTest {
         assertThat(texto.split("</datos_consulta>", -1)).hasSize(2);
         assertThat(texto).contains("Edad aproximada: 3 años");
     }
+
+    @Test
+    void enmascaraCorreosYTelefonosEscritosEnTextoLibre() {
+        String texto = DatosParaResumen.limpio(
+                "Llamar a la dueña al 300 123 4567 o a maria.p@correo.test. Omeprazol 20 mg por 5 días");
+
+        assertThat(texto).doesNotContain("300 123 4567", "maria.p@correo.test")
+                .contains("[dato omitido]", "Omeprazol 20 mg por 5 días");
+    }
 }
