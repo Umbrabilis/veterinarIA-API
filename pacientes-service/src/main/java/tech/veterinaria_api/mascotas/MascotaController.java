@@ -24,8 +24,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import tech.veterinaria_api.common.PaginaResponse;
+import tech.veterinaria_api.common.Patrones;
 import tech.veterinaria_api.mascotas.dto.MascotaRequest;
 import tech.veterinaria_api.mascotas.dto.MascotaResponse;
 import tech.veterinaria_api.security.UsuarioActual;
@@ -50,12 +53,15 @@ public class MascotaController {
 
     @GetMapping
     @PreAuthorize(PERSONAL_CLINICO)
-    @Operation(summary = "Lista mascotas, opcionalmente de un propietario")
+    @Operation(summary = "Lista mascotas; filtra por propietario y busca por nombre de la mascota, nombre del propietario o documento exacto")
     public PaginaResponse<MascotaResponse> listar(@RequestParam(required = false) UUID propietarioId,
+            @RequestParam(required = false)
+            @Size(max = 100, message = "La búsqueda no puede superar 100 caracteres")
+            @Pattern(regexp = Patrones.BUSQUEDA, message = "La búsqueda contiene caracteres no permitidos") String busqueda,
             @RequestParam(defaultValue = "0") @Min(0) int pagina,
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int tamano) {
         return PaginaResponse.de(
-                mascotaService.listar(propietarioId, PageRequest.of(pagina, tamano, Sort.by("nombre"))),
+                mascotaService.listar(propietarioId, busqueda, PageRequest.of(pagina, tamano, Sort.by("nombre"))),
                 MascotaResponse::de);
     }
 

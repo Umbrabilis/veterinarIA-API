@@ -42,11 +42,14 @@ public class MascotaService {
     }
 
     @Transactional(readOnly = true)
-    public Page<Mascota> listar(UUID propietarioId, Pageable pageable) {
+    public Page<Mascota> listar(UUID propietarioId, String busqueda, Pageable pageable) {
+        boolean sinBusqueda = busqueda == null || busqueda.isBlank();
         if (propietarioId == null) {
-            return mascotaRepository.findAll(pageable);
+            return sinBusqueda ? mascotaRepository.findAll(pageable)
+                    : mascotaRepository.buscar(busqueda.trim(), pageable);
         }
-        return mascotaRepository.findByPropietarioId(propietarioId, pageable);
+        return sinBusqueda ? mascotaRepository.findByPropietarioId(propietarioId, pageable)
+                : mascotaRepository.buscarDePropietario(propietarioId, busqueda.trim(), pageable);
     }
 
     @Transactional

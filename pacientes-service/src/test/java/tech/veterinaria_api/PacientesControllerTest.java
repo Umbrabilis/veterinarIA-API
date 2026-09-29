@@ -17,6 +17,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 import tech.veterinaria_api.common.ApiError;
+import tech.veterinaria_api.common.PaginaResponse;
 import tech.veterinaria_api.common.RolUsuario;
 import tech.veterinaria_api.mascotas.Especie;
 import tech.veterinaria_api.mascotas.Sexo;
@@ -228,5 +229,36 @@ class PacientesControllerTest {
         restTestClient.get().uri("/api/v1/mascotas")
                 .exchange()
                 .expectStatus().isUnauthorized();
+    }
+
+    @Test
+    void buscaMascotasPorNombreYPorDocumentoDelPropietario() {
+        String documento = String.valueOf(System.nanoTime()).substring(0, 12);
+        PropietarioResponse propietario = crearPropietario(documento, "busqueda" + documento + "@correo.test");
+        MascotaResponse zeus = crearMascota(propietario.id(), "Zeus Buscable");
+        MascotaResponse kira = crearMascota(propietario.id(), "Kira");
+
+        assertThat(buscarMascotas("zeus bus")).extracting(MascotaResponse::id)
+                .contains(zeus.id()).doesNotContain(kira.id());
+        assertThat(buscarMascotas(documento)).extracting(MascotaResponse::id)
+                .containsExactlyInAnyOrder(zeus.id(), kira.id());
+
+        restTestClient.get().uri("/api/v1/mascotas?busqueda={b}", "<script>")
+                .header("Authorization", vet())
+                .exchange()
+                .expectStatus().isBadRequest();
+    }
+
+    private List<MascotaResponse> buscarMascotas(String busqueda) {
+        PaginaResponse<MascotaResponse> pagina = restTestClient.get().uri("/api/v1/mascotas?busqueda={b}", busqueda)
+                .header("Authorization", vet())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(new ParameterizedTypeReference<PaginaResponse<MascotaResponse>>() {
+                })
+                .returnResult()
+                .getResponseBody();
+        assertThat(pagina).isNotNull();
+        return pagina.contenido();
     }
 }
