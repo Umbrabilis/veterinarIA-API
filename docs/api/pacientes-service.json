@@ -234,7 +234,10 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 100,
+              "minLength": 0,
+              "pattern": "^[\\p{L}\\p{N} .@'-]*$"
             }
           },
           {
@@ -372,7 +375,7 @@
         "tags": [
           "Mascotas"
         ],
-        "summary": "Lista mascotas, opcionalmente de un propietario",
+        "summary": "Lista mascotas; filtra por propietario y busca por nombre de la mascota, nombre del propietario o documento exacto",
         "operationId": "listar_1",
         "parameters": [
           {
@@ -382,6 +385,17 @@
             "schema": {
               "type": "string",
               "format": "uuid"
+            }
+          },
+          {
+            "name": "busqueda",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100,
+              "minLength": 0,
+              "pattern": "^[\\p{L}\\p{N} .@'-]*$"
             }
           },
           {
@@ -484,16 +498,18 @@
           "nombre": {
             "type": "string",
             "maxLength": 150,
-            "minLength": 0
+            "minLength": 0,
+            "pattern": "^\\p{L}[\\p{L} .'-]*$"
           },
           "documento": {
             "type": "string",
             "maxLength": 30,
-            "minLength": 0
+            "minLength": 0,
+            "pattern": "^[A-Za-z0-9.-]{3,30}$"
           },
           "telefono": {
             "type": "string",
-            "pattern": "^[0-9+()\\s-]{7,30}$"
+            "pattern": "^(?=(?:\\D*\\d){7,15}\\D*$)[0-9+()\\s-]{7,30}$"
           },
           "email": {
             "type": "string",
@@ -503,7 +519,8 @@
           "direccion": {
             "type": "string",
             "maxLength": 255,
-            "minLength": 0
+            "minLength": 0,
+            "pattern": "^[\\p{L}\\p{N} #.,'Â°Âº/()-]*$"
           },
           "aceptaTratamientoDatos": {
             "type": "boolean"
@@ -511,6 +528,7 @@
         },
         "required": [
           "documento",
+          "email",
           "nombre",
           "telefono"
         ]
@@ -552,12 +570,13 @@
         "properties": {
           "telefono": {
             "type": "string",
-            "pattern": "^[0-9+()\\s-]{7,30}$"
+            "pattern": "^(?=(?:\\D*\\d){7,15}\\D*$)[0-9+()\\s-]{7,30}$"
           },
           "direccion": {
             "type": "string",
             "maxLength": 255,
-            "minLength": 0
+            "minLength": 0,
+            "pattern": "^[\\p{L}\\p{N} #.,'Â°Âº/()-]*$"
           }
         },
         "required": [
@@ -574,7 +593,8 @@
           "nombre": {
             "type": "string",
             "maxLength": 100,
-            "minLength": 0
+            "minLength": 0,
+            "pattern": "^[\\p{L}\\p{N}][\\p{L}\\p{N} .'()/-]*$"
           },
           "especie": {
             "type": "string",
@@ -591,7 +611,8 @@
           "raza": {
             "type": "string",
             "maxLength": 100,
-            "minLength": 0
+            "minLength": 0,
+            "pattern": "^[\\p{L} .,'/-]*$"
           },
           "sexo": {
             "type": "string",
@@ -613,7 +634,8 @@
           "color": {
             "type": "string",
             "maxLength": 60,
-            "minLength": 0
+            "minLength": 0,
+            "pattern": "^[\\p{L} .,'/-]*$"
           },
           "activo": {
             "type": "boolean"
@@ -700,7 +722,8 @@
           "codigo": {
             "type": "string",
             "maxLength": 20,
-            "minLength": 0
+            "minLength": 0,
+            "pattern": "^[A-Za-z0-9\\s-]+$"
           }
         },
         "required": [

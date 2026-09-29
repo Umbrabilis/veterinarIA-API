@@ -839,12 +839,14 @@
           "nombre": {
             "type": "string",
             "maxLength": 150,
-            "minLength": 0
+            "minLength": 0,
+            "pattern": "^[\\p{L}\\p{N}][\\p{L}\\p{N} .'()/-]*$"
           },
           "lote": {
             "type": "string",
             "maxLength": 60,
-            "minLength": 0
+            "minLength": 0,
+            "pattern": "^[A-Za-z0-9-]*$"
           },
           "fechaAplicacion": {
             "type": "string",
