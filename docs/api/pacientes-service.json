@@ -1,0 +1,774 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "VeterinarIA API â€” pacientes-service",
+    "description": "Propietarios (con consentimiento de tratamiento de datos) y mascotas.",
+    "version": "v1"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Gateway local"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Mascotas",
+      "description": "Pacientes de la clÃ­nica"
+    },
+    {
+      "name": "Propietarios",
+      "description": "DueÃ±os de mascotas y sus datos de contacto"
+    }
+  ],
+  "paths": {
+    "/api/v1/propietarios/{id}": {
+      "get": {
+        "tags": [
+          "Propietarios"
+        ],
+        "summary": "Un propietario: personal de la clÃ­nica o el propio propietario",
+        "operationId": "obtener",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropietarioResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Propietarios"
+        ],
+        "summary": "Actualiza un propietario",
+        "operationId": "actualizar",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PropietarioRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropietarioResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/propietarios/me": {
+      "get": {
+        "tags": [
+          "Propietarios"
+        ],
+        "summary": "Datos del propietario autenticado",
+        "operationId": "miPerfil",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropietarioResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Propietarios"
+        ],
+        "summary": "El propietario autenticado actualiza su telÃ©fono y direcciÃ³n",
+        "operationId": "actualizarMiPerfil",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActualizarMisDatosRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropietarioResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mascotas/{id}": {
+      "get": {
+        "tags": [
+          "Mascotas"
+        ],
+        "summary": "Una mascota: personal de la clÃ­nica o su propietario",
+        "operationId": "obtener_1",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MascotaResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Mascotas"
+        ],
+        "summary": "Actualiza una mascota (incluye marcarla como inactiva)",
+        "operationId": "actualizar_1",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MascotaRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MascotaResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/propietarios": {
+      "get": {
+        "tags": [
+          "Propietarios"
+        ],
+        "summary": "Lista propietarios; busca por nombre o documento exacto",
+        "operationId": "listar",
+        "parameters": [
+          {
+            "name": "busqueda",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pagina",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 0,
+              "minimum": 0
+            }
+          },
+          {
+            "name": "tamano",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginaResponsePropietarioResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Propietarios"
+        ],
+        "summary": "Registra un propietario (requiere autorizaciÃ³n de tratamiento de datos)",
+        "operationId": "crear",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PropietarioRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropietarioResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/propietarios/{id}/codigo-vinculacion": {
+      "post": {
+        "tags": [
+          "Propietarios"
+        ],
+        "summary": "Genera un cÃ³digo de un solo uso (7 dÃ­as) para que el dueÃ±o vincule su cuenta",
+        "operationId": "codigoVinculacion",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CodigoVinculacionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/propietarios/me/vincular": {
+      "post": {
+        "tags": [
+          "Propietarios"
+        ],
+        "summary": "Vincula la cuenta autenticada con su registro usando el cÃ³digo que entregÃ³ la clÃ­nica",
+        "operationId": "vincular",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VincularCuentaRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropietarioResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mascotas": {
+      "get": {
+        "tags": [
+          "Mascotas"
+        ],
+        "summary": "Lista mascotas, opcionalmente de un propietario",
+        "operationId": "listar_1",
+        "parameters": [
+          {
+            "name": "propietarioId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "pagina",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 0,
+              "minimum": 0
+            }
+          },
+          {
+            "name": "tamano",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginaResponseMascotaResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Mascotas"
+        ],
+        "summary": "Registra una mascota",
+        "operationId": "crear_1",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MascotaRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/MascotaResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mascotas/mias": {
+      "get": {
+        "tags": [
+          "Mascotas"
+        ],
+        "summary": "Mascotas del propietario autenticado",
+        "operationId": "mias",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MascotaResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "PropietarioRequest": {
+        "type": "object",
+        "properties": {
+          "nombre": {
+            "type": "string",
+            "maxLength": 150,
+            "minLength": 0
+          },
+          "documento": {
+            "type": "string",
+            "maxLength": 30,
+            "minLength": 0
+          },
+          "telefono": {
+            "type": "string",
+            "pattern": "^[0-9+()\\s-]{7,30}$"
+          },
+          "email": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 0
+          },
+          "direccion": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 0
+          },
+          "aceptaTratamientoDatos": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "documento",
+          "nombre",
+          "telefono"
+        ]
+      },
+      "PropietarioResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "usuarioId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "nombre": {
+            "type": "string"
+          },
+          "documento": {
+            "type": "string"
+          },
+          "telefono": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "direccion": {
+            "type": "string"
+          },
+          "consentimientoDatosEn": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ActualizarMisDatosRequest": {
+        "type": "object",
+        "properties": {
+          "telefono": {
+            "type": "string",
+            "pattern": "^[0-9+()\\s-]{7,30}$"
+          },
+          "direccion": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 0
+          }
+        },
+        "required": [
+          "telefono"
+        ]
+      },
+      "MascotaRequest": {
+        "type": "object",
+        "properties": {
+          "propietarioId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "nombre": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 0
+          },
+          "especie": {
+            "type": "string",
+            "enum": [
+              "PERRO",
+              "GATO",
+              "AVE",
+              "CONEJO",
+              "ROEDOR",
+              "REPTIL",
+              "OTRO"
+            ]
+          },
+          "raza": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 0
+          },
+          "sexo": {
+            "type": "string",
+            "enum": [
+              "MACHO",
+              "HEMBRA",
+              "DESCONOCIDO"
+            ]
+          },
+          "fechaNacimiento": {
+            "type": "string",
+            "format": "date"
+          },
+          "pesoKg": {
+            "type": "number",
+            "maximum": 9999.99,
+            "minimum": 0.01
+          },
+          "color": {
+            "type": "string",
+            "maxLength": 60,
+            "minLength": 0
+          },
+          "activo": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "especie",
+          "nombre",
+          "propietarioId",
+          "sexo"
+        ]
+      },
+      "MascotaResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "propietarioId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "nombre": {
+            "type": "string"
+          },
+          "especie": {
+            "type": "string",
+            "enum": [
+              "PERRO",
+              "GATO",
+              "AVE",
+              "CONEJO",
+              "ROEDOR",
+              "REPTIL",
+              "OTRO"
+            ]
+          },
+          "raza": {
+            "type": "string"
+          },
+          "sexo": {
+            "type": "string",
+            "enum": [
+              "MACHO",
+              "HEMBRA",
+              "DESCONOCIDO"
+            ]
+          },
+          "fechaNacimiento": {
+            "type": "string",
+            "format": "date"
+          },
+          "pesoKg": {
+            "type": "number"
+          },
+          "color": {
+            "type": "string"
+          },
+          "activo": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CodigoVinculacionResponse": {
+        "type": "object",
+        "properties": {
+          "codigo": {
+            "type": "string"
+          },
+          "expiraEn": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "VincularCuentaRequest": {
+        "type": "object",
+        "properties": {
+          "codigo": {
+            "type": "string",
+            "maxLength": 20,
+            "minLength": 0
+          }
+        },
+        "required": [
+          "codigo"
+        ]
+      },
+      "PaginaResponsePropietarioResponse": {
+        "type": "object",
+        "properties": {
+          "contenido": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PropietarioResponse"
+            }
+          },
+          "pagina": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tamano": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalElementos": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalPaginas": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "PaginaResponseMascotaResponse": {
+        "type": "object",
+        "properties": {
+          "contenido": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MascotaResponse"
+            }
+          },
+          "pagina": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tamano": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalElementos": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalPaginas": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "name": "bearerAuth",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}

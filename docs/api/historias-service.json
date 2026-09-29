@@ -1,0 +1,995 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "VeterinarIA API â€” historias-service",
+    "description": "Historia clÃƒÂ­nica inmutable (consultas, enmiendas, vacunas), seguimiento y resÃƒÂºmenes IA.",
+    "version": "v1"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Gateway local"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "ResÃºmenes IA",
+      "description": "Resumen de la consulta para el dueÃ±o: la IA redacta, el veterinario aprueba"
+    },
+    {
+      "name": "Seguimiento",
+      "description": "Controles y refuerzos de vacuna prÃ³ximos"
+    },
+    {
+      "name": "Vacunas",
+      "description": "Plan preventivo: vacunas aplicadas y prÃ³ximas dosis"
+    },
+    {
+      "name": "Consultas",
+      "description": "Historia clÃ­nica: consultas, cierre y enmiendas"
+    }
+  ],
+  "paths": {
+    "/api/v1/resumenes/{id}": {
+      "get": {
+        "tags": [
+          "ResÃºmenes IA"
+        ],
+        "summary": "Un resumen (el dueÃ±o solo lo ve una vez enviado)",
+        "operationId": "obtener",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResumenResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "ResÃºmenes IA"
+        ],
+        "summary": "El veterinario edita el borrador",
+        "operationId": "editar",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContenidoResumen"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResumenResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/consultas/{id}": {
+      "get": {
+        "tags": [
+          "Consultas"
+        ],
+        "summary": "Detalle de una consulta con sus enmiendas",
+        "operationId": "obtener_1",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsultaResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Consultas"
+        ],
+        "summary": "Edita una consulta abierta (solo el veterinario que la atiende)",
+        "operationId": "actualizar",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DatosClinicosRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsultaResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/vacunas": {
+      "get": {
+        "tags": [
+          "Vacunas"
+        ],
+        "summary": "CarnÃ© de vacunaciÃ³n de una mascota",
+        "operationId": "carne",
+        "parameters": [
+          {
+            "name": "mascotaId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/VacunaResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Vacunas"
+        ],
+        "summary": "Registra una vacuna aplicada (solo veterinarios)",
+        "operationId": "registrar",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VacunaRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/VacunaResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/resumenes/{id}/enviar": {
+      "post": {
+        "tags": [
+          "ResÃºmenes IA"
+        ],
+        "summary": "EnvÃ­a al dueÃ±o por correo un resumen ya aprobado",
+        "operationId": "enviar",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResumenResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/resumenes/{id}/aprobar": {
+      "post": {
+        "tags": [
+          "ResÃºmenes IA"
+        ],
+        "summary": "El veterinario aprueba el resumen (opcionalmente con su versiÃ³n final)",
+        "operationId": "aprobar",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AprobarResumenRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResumenResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/consultas": {
+      "get": {
+        "tags": [
+          "Consultas"
+        ],
+        "summary": "Historia clÃ­nica de una mascota (el propietario ve solo consultas cerradas)",
+        "operationId": "historia",
+        "parameters": [
+          {
+            "name": "mascotaId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConsultaResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Consultas"
+        ],
+        "summary": "Abre una consulta (solo veterinarios)",
+        "operationId": "crear",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CrearConsultaRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsultaResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/consultas/{id}/enmiendas": {
+      "post": {
+        "tags": [
+          "Consultas"
+        ],
+        "summary": "Agrega una enmienda a una consulta cerrada (queda registro de quiÃ©n y cuÃ¡ndo)",
+        "operationId": "enmendar",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnmiendaRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnmiendaResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/consultas/{id}/cerrar": {
+      "post": {
+        "tags": [
+          "Consultas"
+        ],
+        "summary": "Cierra la consulta: queda inmutable y se genera el borrador del resumen para el dueÃ±o",
+        "operationId": "cerrar",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsultaResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/consultas/{consultaId}/resumen": {
+      "get": {
+        "tags": [
+          "ResÃºmenes IA"
+        ],
+        "summary": "Resumen de una consulta (el dueÃ±o solo lo ve una vez enviado)",
+        "operationId": "porConsulta",
+        "parameters": [
+          {
+            "name": "consultaId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResumenResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "ResÃºmenes IA"
+        ],
+        "summary": "Genera el borrador si no se generÃ³ al cerrar la consulta",
+        "operationId": "generar",
+        "parameters": [
+          {
+            "name": "consultaId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResumenResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/seguimiento/pendientes": {
+      "get": {
+        "tags": [
+          "Seguimiento"
+        ],
+        "summary": "Controles y refuerzos de vacuna de los prÃ³ximos dÃ­as que aÃºn no se atienden",
+        "operationId": "pendientes",
+        "parameters": [
+          {
+            "name": "dias",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 30,
+              "maximum": 365,
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SeguimientoItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/resumenes": {
+      "get": {
+        "tags": [
+          "ResÃºmenes IA"
+        ],
+        "summary": "Bandeja de revisiÃ³n por estado (BORRADOR por defecto)",
+        "operationId": "porEstado",
+        "parameters": [
+          {
+            "name": "estado",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "BORRADOR",
+              "enum": [
+                "BORRADOR",
+                "APROBADO",
+                "ENVIADO"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ResumenResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ContenidoResumen": {
+        "type": "object",
+        "properties": {
+          "hallazgos": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 0
+          },
+          "tratamiento": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 0
+          },
+          "cuidadosEnCasa": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 0
+          },
+          "proximaVisita": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 0
+          }
+        },
+        "required": [
+          "cuidadosEnCasa",
+          "hallazgos",
+          "proximaVisita",
+          "tratamiento"
+        ]
+      },
+      "ResumenResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "consultaId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "BORRADOR",
+              "APROBADO",
+              "ENVIADO"
+            ]
+          },
+          "generado": {
+            "$ref": "#/components/schemas/ContenidoResumen"
+          },
+          "contenidoFinal": {
+            "$ref": "#/components/schemas/ContenidoResumen"
+          },
+          "modelo": {
+            "type": "string"
+          },
+          "versionPrompt": {
+            "type": "string"
+          },
+          "aprobadoPor": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "aprobadoEn": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "enviadoEn": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "DatosClinicosRequest": {
+        "type": "object",
+        "properties": {
+          "motivo": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 0
+          },
+          "sintomas": {
+            "type": "string",
+            "maxLength": 10000,
+            "minLength": 0
+          },
+          "examenFisico": {
+            "type": "string",
+            "maxLength": 10000,
+            "minLength": 0
+          },
+          "pesoKg": {
+            "type": "number",
+            "minimum": 0.01
+          },
+          "temperaturaC": {
+            "type": "number",
+            "maximum": 45.0,
+            "minimum": 25.0
+          },
+          "diagnostico": {
+            "type": "string",
+            "maxLength": 10000,
+            "minLength": 0
+          },
+          "tratamiento": {
+            "type": "string",
+            "maxLength": 10000,
+            "minLength": 0
+          },
+          "indicaciones": {
+            "type": "string",
+            "maxLength": 10000,
+            "minLength": 0
+          },
+          "proximoControl": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "motivo"
+        ]
+      },
+      "ConsultaResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "mascotaId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "propietarioId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "veterinarioId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "citaId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "motivo": {
+            "type": "string"
+          },
+          "sintomas": {
+            "type": "string"
+          },
+          "examenFisico": {
+            "type": "string"
+          },
+          "pesoKg": {
+            "type": "number"
+          },
+          "temperaturaC": {
+            "type": "number"
+          },
+          "diagnostico": {
+            "type": "string"
+          },
+          "tratamiento": {
+            "type": "string"
+          },
+          "indicaciones": {
+            "type": "string"
+          },
+          "proximoControl": {
+            "type": "string",
+            "format": "date"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "ABIERTA",
+              "CERRADA"
+            ]
+          },
+          "cerradaEn": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "enmiendas": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnmiendaResponse"
+            }
+          }
+        }
+      },
+      "EnmiendaResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "consultaId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "autorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "motivo": {
+            "type": "string"
+          },
+          "contenido": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "VacunaRequest": {
+        "type": "object",
+        "properties": {
+          "mascotaId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "nombre": {
+            "type": "string",
+            "maxLength": 150,
+            "minLength": 0
+          },
+          "lote": {
+            "type": "string",
+            "maxLength": 60,
+            "minLength": 0
+          },
+          "fechaAplicacion": {
+            "type": "string",
+            "format": "date"
+          },
+          "proximaDosis": {
+            "type": "string",
+            "format": "date"
+          },
+          "notas": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 0
+          }
+        },
+        "required": [
+          "fechaAplicacion",
+          "mascotaId",
+          "nombre"
+        ]
+      },
+      "VacunaResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "mascotaId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "veterinarioId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "nombre": {
+            "type": "string"
+          },
+          "lote": {
+            "type": "string"
+          },
+          "fechaAplicacion": {
+            "type": "string",
+            "format": "date"
+          },
+          "proximaDosis": {
+            "type": "string",
+            "format": "date"
+          },
+          "notas": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AprobarResumenRequest": {
+        "type": "object",
+        "properties": {
+          "contenidoFinal": {
+            "$ref": "#/components/schemas/ContenidoResumen"
+          }
+        }
+      },
+      "CrearConsultaRequest": {
+        "type": "object",
+        "properties": {
+          "mascotaId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "citaId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "datos": {
+            "$ref": "#/components/schemas/DatosClinicosRequest"
+          }
+        },
+        "required": [
+          "datos",
+          "mascotaId"
+        ]
+      },
+      "EnmiendaRequest": {
+        "type": "object",
+        "properties": {
+          "motivo": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 0
+          },
+          "contenido": {
+            "type": "string",
+            "maxLength": 10000,
+            "minLength": 0
+          }
+        },
+        "required": [
+          "contenido",
+          "motivo"
+        ]
+      },
+      "SeguimientoItem": {
+        "type": "object",
+        "properties": {
+          "tipo": {
+            "type": "string",
+            "enum": [
+              "CONTROL",
+              "REFUERZO_VACUNA"
+            ]
+          },
+          "fecha": {
+            "type": "string",
+            "format": "date"
+          },
+          "mascotaId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "propietarioId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "referenciaId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "descripcion": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "name": "bearerAuth",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}
