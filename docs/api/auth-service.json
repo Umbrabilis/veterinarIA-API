@@ -269,7 +269,7 @@
         "properties": {
           "nombre": {
             "type": "string",
-            "maxLength": 150,
+            "maxLength": 100,
             "minLength": 0,
             "pattern": "^\\p{L}[\\p{L} .'-]*$"
           }
@@ -326,13 +326,13 @@
         "properties": {
           "nombre": {
             "type": "string",
-            "maxLength": 150,
+            "maxLength": 100,
             "minLength": 0,
             "pattern": "^\\p{L}[\\p{L} .'-]*$"
           },
           "email": {
             "type": "string",
-            "maxLength": 255,
+            "maxLength": 100,
             "minLength": 0
           },
           "password": {
@@ -380,7 +380,7 @@
         "properties": {
           "email": {
             "type": "string",
-            "maxLength": 255,
+            "maxLength": 100,
             "minLength": 0
           },
           "password": {

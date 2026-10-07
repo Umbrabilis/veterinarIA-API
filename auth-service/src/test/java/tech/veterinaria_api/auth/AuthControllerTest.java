@@ -182,4 +182,27 @@ class AuthControllerTest {
                 .expectStatus().isForbidden()
                 .expectBody(ApiError.class);
     }
+
+    @Test
+    void rechazaNombreYCorreoDeMasDeCienCaracteres() {
+        String nombreLargo = "a".repeat(101);
+        String correoLargo = "a".repeat(90) + "@clinica.test";
+
+        for (RegisterRequest registro : new RegisterRequest[] {
+                new RegisterRequest(nombreLargo, "largo1@veterinaria.tech", "password123", RolUsuario.VETERINARIO),
+                new RegisterRequest("Ana Gómez", correoLargo, "password123", RolUsuario.VETERINARIO) }) {
+            restTestClient.post().uri("/api/v1/auth/register")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(registro)
+                    .exchange()
+                    .expectStatus().isBadRequest()
+                    .expectBody(ApiError.class);
+        }
+
+        restTestClient.post().uri("/api/v1/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new RegisterRequest("a".repeat(100), "cien@veterinaria.tech", "password123", RolUsuario.VETERINARIO))
+                .exchange()
+                .expectStatus().isCreated();
+    }
 }

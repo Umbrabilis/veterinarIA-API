@@ -175,9 +175,9 @@ en `src/shared/validaciones.ts`: si cambias una, cambia la otra.
 
 | Campo | Regla |
 |---|---|
-| Nombre de persona | Letras (con tildes y ñ), espacios, punto, apóstrofo y guion |
+| Nombre de persona | Letras (con tildes y ñ), espacios, punto, apóstrofo y guion; máximo 100 caracteres |
 | Nombre de mascota o vacuna | Además admite números y paréntesis |
-| Email | Con dominio y extensión (`usuario@dominio.co`); obligatorio en propietarios |
+| Email | Con dominio y extensión (`usuario@dominio.co`), máximo 100 caracteres; obligatorio en propietarios |
 | Contraseña | 8 a 72 caracteres, al menos una letra y un número |
 | Teléfono | Entre 7 y 15 dígitos, admite `+`, espacios, paréntesis y guiones |
 | Documento | Letras, números, punto y guion (3 a 30) |
