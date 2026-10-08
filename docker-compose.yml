@@ -1,0 +1,152 @@
+# Backend completo en microservicios con escalado horizontal:
+#   docker compose up -d --build
+# Gateway (entrada única del frontend): http://localhost:8080   Swagger: http://localhost:8080/docs/
+# Correos de prueba (Mailpit): http://localhost:8025
+# Cambiar el número de réplicas:  REPLICAS=3 docker compose up -d
+# o un solo servicio:             docker compose up -d --scale citas-service=4
+
+name: veterinaria
+
+x-entorno-comun: &entorno-comun
+  # La app corre con un rol sin privilegios de dueño; Flyway migra con el dueño de las tablas.
+  DB_USER: veterinaria_app
+  DB_PASSWORD: veterinaria_app
+  SPRING_FLYWAY_USER: veterinaria
+  SPRING_FLYWAY_PASSWORD: veterinaria
+  CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+  AUTH_JWKS_URI: http://auth-service:8080/.well-known/jwks.json
+  AUTH_SERVICE_URL: http://auth-service:8080
+  PACIENTES_SERVICE_URL: http://pacientes-service:8080
+
+x-microservicio: &microservicio
+  restart: unless-stopped
+  deploy:
+    replicas: ${REPLICAS:-2}
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: veterinaria
+      POSTGRES_PASSWORD: veterinaria
+    ports:
+      - "5432:5432"
+    volumes:
+      - veterinaria-pg-microservicios:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U veterinaria"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Genera una sola vez el par RSA con el que firman TODAS las réplicas de auth-service.
+  jwt-keys:
+    image: alpine/openssl
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        [ -f /keys/private.pem ] ||
+        (openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out /keys/private.pem &&
+        openssl pkey -in /keys/private.pem -pubout -out /keys/public.pem &&
+        chmod 644 /keys/private.pem /keys/public.pem)
+    volumes:
+      - veterinaria-jwt-keys:/keys
+
+  auth-service:
+    <<: *microservicio
+    image: veterinaria/auth-service
+    build:
+      context: .
+      args:
+        SERVICIO: auth-service
+    environment:
+      <<: *entorno-comun
+      DB_URL: jdbc:postgresql://postgres:5432/auth_db
+      JWT_PRIVATE_KEY_LOCATION: file:/keys/private.pem
+      JWT_PUBLIC_KEY_LOCATION: file:/keys/public.pem
+    volumes:
+      - veterinaria-jwt-keys:/keys:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      jwt-keys:
+        condition: service_completed_successfully
+
+  pacientes-service:
+    <<: *microservicio
+    image: veterinaria/pacientes-service
+    build:
+      context: .
+      args:
+        SERVICIO: pacientes-service
+    environment:
+      <<: *entorno-comun
+      DB_URL: jdbc:postgresql://postgres:5432/pacientes_db
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  citas-service:
+    <<: *microservicio
+    image: veterinaria/citas-service
+    build:
+      context: .
+      args:
+        SERVICIO: citas-service
+    environment:
+      <<: *entorno-comun
+      DB_URL: jdbc:postgresql://postgres:5432/citas_db
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  historias-service:
+    <<: *microservicio
+    image: veterinaria/historias-service
+    build:
+      context: .
+      args:
+        SERVICIO: historias-service
+    environment:
+      <<: *entorno-comun
+      DB_URL: jdbc:postgresql://postgres:5432/historias_db
+      MAIL_HOST: mailpit
+      MAIL_PORT: "1025"
+      # Opcional: sin clave, los borradores se generan con la plantilla local.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  gateway:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - ./docker/gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - auth-service
+      - pacientes-service
+      - citas-service
+      - historias-service
+
+  swagger-ui:
+    image: swaggerapi/swagger-ui
+    environment:
+      BASE_URL: /docs
+      URLS: >-
+        [{"url":"/v3/api-docs/auth-service","name":"auth-service"},
+        {"url":"/v3/api-docs/pacientes-service","name":"pacientes-service"},
+        {"url":"/v3/api-docs/citas-service","name":"citas-service"},
+        {"url":"/v3/api-docs/historias-service","name":"historias-service"}]
+
+  mailpit:
+    image: axllent/mailpit
+    ports:
+      - "8025:8025"
+
+volumes:
+  veterinaria-pg-microservicios:
+  veterinaria-jwt-keys:

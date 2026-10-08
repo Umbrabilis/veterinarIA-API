@@ -1,0 +1,6 @@
+# Solo local (excluido de git en .git/info/exclude): este equipo tiene un PostgreSQL 17 nativo
+# ocupando el 5432, así que la base de Docker también se publica en el 5433 para DBeaver.
+services:
+  postgres:
+    ports:
+      - "5433:5432"

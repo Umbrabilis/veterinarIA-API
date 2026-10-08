@@ -1,0 +1,422 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "VeterinarIA API â€” citas-service",
+    "description": "Agenda de citas: agendar, reprogramar, cancelar y cambiar estado.",
+    "version": "v1"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Gateway local"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Citas",
+      "description": "Agenda de la clÃ­nica"
+    }
+  ],
+  "paths": {
+    "/api/v1/citas": {
+      "get": {
+        "tags": [
+          "Citas"
+        ],
+        "summary": "Agenda filtrada por veterinario, mascota y rango de fechas (ISO-8601)",
+        "operationId": "listar",
+        "parameters": [
+          {
+            "name": "veterinarioId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "mascotaId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "desde",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "hasta",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CitaResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Citas"
+        ],
+        "summary": "Agenda una cita (personal de la clÃ­nica, o el propietario para su mascota)",
+        "operationId": "crear",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CrearCitaRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CitaResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/citas/{id}/reprogramar": {
+      "patch": {
+        "tags": [
+          "Citas"
+        ],
+        "summary": "Cambia el horario de una cita activa",
+        "operationId": "reprogramar",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReprogramarCitaRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CitaResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/citas/{id}/estado": {
+      "patch": {
+        "tags": [
+          "Citas"
+        ],
+        "summary": "Confirma, marca como atendida / no asistiÃ³, o cancela una cita",
+        "operationId": "cambiarEstado",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CambiarEstadoCitaRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CitaResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/citas/{id}/cancelar": {
+      "patch": {
+        "tags": [
+          "Citas"
+        ],
+        "summary": "Cancela una cita programada o confirmada",
+        "operationId": "cancelar",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CitaResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/citas/{id}": {
+      "get": {
+        "tags": [
+          "Citas"
+        ],
+        "summary": "Una cita: personal de la clÃ­nica o el propietario de la mascota",
+        "operationId": "obtener",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CitaResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/citas/mias": {
+      "get": {
+        "tags": [
+          "Citas"
+        ],
+        "summary": "Citas del propietario autenticado, o agenda del veterinario autenticado",
+        "operationId": "mias",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CitaResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CrearCitaRequest": {
+        "type": "object",
+        "properties": {
+          "mascotaId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "veterinarioId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "inicio": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "fin": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "motivo": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 0
+          }
+        },
+        "required": [
+          "fin",
+          "inicio",
+          "mascotaId",
+          "motivo",
+          "veterinarioId"
+        ]
+      },
+      "CitaResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "mascotaId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "mascotaNombre": {
+            "type": "string"
+          },
+          "propietarioId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "veterinarioId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "veterinarioNombre": {
+            "type": "string"
+          },
+          "inicio": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "fin": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "motivo": {
+            "type": "string"
+          },
+          "estado": {
+            "type": "string",
+            "enum": [
+              "PROGRAMADA",
+              "CONFIRMADA",
+              "CANCELADA",
+              "ATENDIDA",
+              "NO_ASISTIO"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ReprogramarCitaRequest": {
+        "type": "object",
+        "properties": {
+          "inicio": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "fin": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "fin",
+          "inicio"
+        ]
+      },
+      "CambiarEstadoCitaRequest": {
+        "type": "object",
+        "properties": {
+          "estado": {
+            "type": "string",
+            "enum": [
+              "PROGRAMADA",
+              "CONFIRMADA",
+              "CANCELADA",
+              "ATENDIDA",
+              "NO_ASISTIO"
+            ]
+          }
+        },
+        "required": [
+          "estado"
+        ]
+      }
+    },
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "name": "bearerAuth",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}
