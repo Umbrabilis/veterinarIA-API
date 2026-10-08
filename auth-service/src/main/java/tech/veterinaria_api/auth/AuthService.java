@@ -35,7 +35,11 @@ public class AuthService {
     @Value("${app.jwt.expiration-minutes}")
     private long expirationMinutes;
 
-    public AuthResponse registrar(RegisterRequest request) {
+    /**
+     * Crea la cuenta pero no inicia sesión: el registro lo puede hacer un administrador para otra persona, y
+     * emitir la cookie le cambiaría la sesión al administrador.
+     */
+    public UsuarioResponse registrar(RegisterRequest request) {
         if (request.rol() == RolUsuario.PROPIETARIO) {
             // Los dueños no usan el sistema: la clínica les escribe al correo registrado en su ficha.
             throw new ReglaNegocioException("El sistema solo admite cuentas de administrador o veterinario");
@@ -46,10 +50,10 @@ public class AuthService {
         }
         String passwordHash = passwordEncoder.encode(request.password());
         Usuario usuario = usuarioService.crear(request.nombre().trim(), email, passwordHash, request.rol());
-        return emitirToken(usuario);
+        return UsuarioResponse.de(usuario);
     }
 
-    public AuthResponse login(LoginRequest request) {
+    public SesionEmitida login(LoginRequest request) {
         Usuario usuario = usuarioService.buscarPorEmail(normalizarEmail(request.email()))
                 .filter(Usuario::isActivo)
                 .filter(u -> passwordEncoder.matches(request.password(), u.getPasswordHash()))
@@ -66,7 +70,11 @@ public class AuthService {
         return email.trim().toLowerCase(java.util.Locale.ROOT);
     }
 
-    private AuthResponse emitirToken(Usuario usuario) {
+    /** JWT firmado y lo que se le devuelve al frontend. El token solo viaja en la cookie HttpOnly. */
+    public record SesionEmitida(String token, AuthResponse respuesta) {
+    }
+
+    private SesionEmitida emitirToken(Usuario usuario) {
         Instant ahora = Instant.now();
         Instant expiracion = ahora.plus(expirationMinutes, ChronoUnit.MINUTES);
 
@@ -82,6 +90,6 @@ public class AuthService {
         JwsHeader header = JwsHeader.with(SignatureAlgorithm.RS256).build();
         String token = jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
 
-        return new AuthResponse(token, "Bearer", expirationMinutes * 60, UsuarioResponse.de(usuario));
+        return new SesionEmitida(token, new AuthResponse(expirationMinutes * 60, UsuarioResponse.de(usuario)));
     }
 }

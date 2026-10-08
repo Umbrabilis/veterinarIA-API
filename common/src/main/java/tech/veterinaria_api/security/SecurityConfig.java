@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -18,6 +19,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -25,7 +27,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 /**
  * Configuración de seguridad común a todos los microservicios: cada uno es un OAuth2 Resource Server
- * sin estado que valida el JWT emitido por auth-service. Todo endpoint requiere autenticación salvo
+ * sin estado que valida el JWT emitido por auth-service. El navegador lo envía en una cookie HttpOnly; los
+ * servicios entre sí, en {@code Authorization: Bearer}. Todo endpoint requiere autenticación salvo
  * los de {@link #RUTAS_PUBLICAS} y los que cada servicio declare en {@code app.security.rutas-publicas}.
  */
 @Configuration
@@ -47,6 +50,10 @@ public class SecurityConfig {
     @Value("${app.security.rutas-publicas:}")
     private String rutasPublicasDelServicio;
 
+    /** Nombre de la cookie HttpOnly donde viaja el JWT (la emite auth-service al iniciar sesión). */
+    @Value("${app.sesion.cookie.nombre:veterinaria_sesion}")
+    private String nombreCookieSesion;
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
@@ -56,7 +63,11 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(rutasPublicas()).permitAll()
                         .anyRequest().authenticated())
-                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())));
+                .addFilterBefore(new OrigenPermitidoFilter(nombreCookieSesion, Set.copyOf(origenesPermitidos())),
+                        BearerTokenAuthenticationFilter.class)
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .bearerTokenResolver(new CookieOHeaderTokenResolver(nombreCookieSesion, List.of(rutasPublicas())))
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())));
 
         return http.build();
     }
@@ -68,6 +79,10 @@ public class SecurityConfig {
                 .filter(ruta -> !ruta.isEmpty())
                 .forEach(rutas::add);
         return rutas.toArray(String[]::new);
+    }
+
+    private List<String> origenesPermitidos() {
+        return Arrays.stream(allowedOrigins.split(",")).map(String::trim).filter(o -> !o.isEmpty()).toList();
     }
 
     private JwtAuthenticationConverter jwtAuthenticationConverter() {
@@ -91,7 +106,9 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of(allowedOrigins.split(",")));
+        configuration.setAllowedOrigins(origenesPermitidos());
+        // El navegador solo envía la cookie de sesión a otro origen (frontend → API) si CORS lo permite así.
+        configuration.setAllowCredentials(true);
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
         configuration.setExposedHeaders(List.of("Authorization"));

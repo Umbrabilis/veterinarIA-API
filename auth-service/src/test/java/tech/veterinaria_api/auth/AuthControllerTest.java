@@ -9,19 +9,22 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureRestTestClient;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.web.servlet.client.EntityExchangeResult;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 import tech.veterinaria_api.testing.TestcontainersConfiguration;
-import tech.veterinaria_api.auth.dto.AuthResponse;
 import tech.veterinaria_api.auth.dto.LoginRequest;
 import tech.veterinaria_api.auth.dto.RegisterRequest;
 import tech.veterinaria_api.auth.dto.UsuarioResponse;
 import tech.veterinaria_api.common.ApiError;
 import tech.veterinaria_api.common.RolUsuario;
+import tech.veterinaria_api.auth.SesionDePrueba.Cuenta;
 import tech.veterinaria_api.usuarios.UsuarioService;
+import tech.veterinaria_api.usuarios.dto.ActualizarPerfilRequest;
 
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -38,40 +41,39 @@ class AuthControllerTest {
     private PasswordEncoder passwordEncoder;
 
     @Test
-    void registraLogueaYConsultaElUsuarioAutenticado() {
+    void registraIniciaSesionConCookieYConsultaElUsuarioAutenticado() {
         RegisterRequest registro = new RegisterRequest("Ada Lovelace", "ada@veterinaria.tech", "password123",
                 RolUsuario.VETERINARIO);
 
-        AuthResponse registroResponse = restTestClient.post().uri("/api/v1/auth/register")
+        // El registro crea la cuenta pero no inicia sesión (lo usa también un admin para crear cuentas ajenas).
+        EntityExchangeResult<UsuarioResponse> registroResultado = restTestClient.post().uri("/api/v1/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(registro)
                 .exchange()
                 .expectStatus().isCreated()
-                .expectBody(AuthResponse.class)
-                .returnResult()
-                .getResponseBody();
+                .expectBody(UsuarioResponse.class)
+                .returnResult();
+        assertThat(registroResultado.getResponseHeaders().get(HttpHeaders.SET_COOKIE)).isNull();
+        assertThat(registroResultado.getResponseBody().email()).isEqualTo("ada@veterinaria.tech");
+        assertThat(registroResultado.getResponseBody().rol()).isEqualTo(RolUsuario.VETERINARIO);
 
-        assertThat(registroResponse).isNotNull();
-        assertThat(registroResponse.accessToken()).isNotBlank();
-        assertThat(registroResponse.usuario().email()).isEqualTo("ada@veterinaria.tech");
-        assertThat(registroResponse.usuario().rol()).isEqualTo(RolUsuario.VETERINARIO);
-
-        LoginRequest login = new LoginRequest("ada@veterinaria.tech", "password123");
-        AuthResponse loginResponse = restTestClient.post().uri("/api/v1/auth/login")
+        EntityExchangeResult<String> login = restTestClient.post().uri("/api/v1/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(login)
+                .body(new LoginRequest("ada@veterinaria.tech", "password123"))
                 .exchange()
                 .expectStatus().isOk()
-                .expectBody(AuthResponse.class)
-                .returnResult()
-                .getResponseBody();
+                .expectBody(String.class)
+                .returnResult();
 
-        assertThat(loginResponse).isNotNull();
-        String token = loginResponse.accessToken();
-        assertThat(token).isNotBlank();
+        // El JWT viaja solo en la cookie HttpOnly: el cuerpo no lo trae.
+        String setCookie = login.getResponseHeaders().getFirst(HttpHeaders.SET_COOKIE);
+        assertThat(setCookie).startsWith(SesionDePrueba.COOKIE + "=")
+                .contains("HttpOnly", "Path=/api", "SameSite=Strict", "Max-Age=3600");
+        assertThat(login.getResponseBody()).doesNotContain("accessToken", "eyJ")
+                .contains("\"expiresInSeconds\":3600", "ada@veterinaria.tech");
 
         UsuarioResponse me = restTestClient.get().uri("/api/v1/auth/me")
-                .header("Authorization", "Bearer " + token)
+                .header(HttpHeaders.COOKIE, SesionDePrueba.COOKIE + "=" + SesionDePrueba.tokenDeCookie(login))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody(UsuarioResponse.class)
@@ -80,6 +82,86 @@ class AuthControllerTest {
 
         assertThat(me).isNotNull();
         assertThat(me.email()).isEqualTo("ada@veterinaria.tech");
+    }
+
+    @Test
+    void cerrarSesionBorraLaCookie() {
+        Cuenta cuenta = SesionDePrueba.registrarEIniciarSesion(restTestClient, "Cerrar Sesion", "logout@veterinaria.tech",
+                RolUsuario.VETERINARIO);
+
+        String setCookie = restTestClient.post().uri("/api/v1/auth/logout")
+                .header(HttpHeaders.COOKIE, cuenta.cookie())
+                .header(HttpHeaders.ORIGIN, "http://localhost:5173")
+                .exchange()
+                .expectStatus().isNoContent()
+                .returnResult()
+                .getResponseHeaders().getFirst(HttpHeaders.SET_COOKIE);
+
+        assertThat(setCookie).startsWith(SesionDePrueba.COOKIE + "=;").contains("Max-Age=0", "HttpOnly");
+    }
+
+    @Test
+    void sinSesionNiTokenRespondeNoAutenticado() {
+        restTestClient.get().uri("/api/v1/auth/me")
+                .exchange()
+                .expectStatus().isUnauthorized();
+        restTestClient.get().uri("/api/v1/auth/me")
+                .header(HttpHeaders.COOKIE, SesionDePrueba.COOKIE + "=token-alterado")
+                .exchange()
+                .expectStatus().isUnauthorized();
+    }
+
+    @Test
+    void unaCookieVencidaOInvalidaNoImpideIniciarSesion() {
+        SesionDePrueba.registrarEIniciarSesion(restTestClient, "Cookie Vieja", "vieja@veterinaria.tech",
+                RolUsuario.VETERINARIO);
+
+        restTestClient.post().uri("/api/v1/auth/login")
+                .header(HttpHeaders.COOKIE, SesionDePrueba.COOKIE + "=token-vencido")
+                .header(HttpHeaders.ORIGIN, "http://localhost:5173")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new LoginRequest("vieja@veterinaria.tech", SesionDePrueba.PASSWORD))
+                .exchange()
+                .expectStatus().isOk();
+    }
+
+    @Test
+    void conCookieSoloSeAceptanCambiosDesdeUnOrigenPermitido() {
+        Cuenta cuenta = SesionDePrueba.registrarEIniciarSesion(restTestClient, "Origen Prueba",
+                "origen@veterinaria.tech", RolUsuario.VETERINARIO);
+        ActualizarPerfilRequest cambio = new ActualizarPerfilRequest("Origen Cambiado");
+
+        // CSRF: otra página no puede usar la cookie del usuario para cambiar datos. CORS rechaza el origen ajeno...
+        restTestClient.put().uri("/api/v1/usuarios/me")
+                .header(HttpHeaders.COOKIE, cuenta.cookie())
+                .header(HttpHeaders.ORIGIN, "https://sitio-malicioso.test")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(cambio)
+                .exchange()
+                .expectStatus().isForbidden();
+        // ...y OrigenPermitidoFilter rechaza la petición con cookie que no dice de dónde viene.
+        restTestClient.put().uri("/api/v1/usuarios/me")
+                .header(HttpHeaders.COOKIE, cuenta.cookie())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(cambio)
+                .exchange()
+                .expectStatus().isForbidden()
+                .expectBody(ApiError.class);
+
+        // Desde el frontend permitido sí.
+        restTestClient.put().uri("/api/v1/usuarios/me")
+                .header(HttpHeaders.COOKIE, cuenta.cookie())
+                .header(HttpHeaders.ORIGIN, "http://localhost:5173")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(cambio)
+                .exchange()
+                .expectStatus().isOk();
+
+        // Las lecturas no cambian datos: no exigen origen.
+        restTestClient.get().uri("/api/v1/usuarios/me")
+                .header(HttpHeaders.COOKIE, cuenta.cookie())
+                .exchange()
+                .expectStatus().isOk();
     }
 
     @Test

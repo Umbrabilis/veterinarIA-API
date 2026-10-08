@@ -14,7 +14,8 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
-import tech.veterinaria_api.auth.dto.AuthResponse;
+import tech.veterinaria_api.auth.SesionDePrueba;
+import tech.veterinaria_api.auth.SesionDePrueba.Cuenta;
 import tech.veterinaria_api.auth.dto.LoginRequest;
 import tech.veterinaria_api.auth.dto.RegisterRequest;
 import tech.veterinaria_api.auth.dto.UsuarioResponse;
@@ -32,15 +33,8 @@ class UsuarioControllerTest {
     @Autowired
     private RestTestClient restTestClient;
 
-    private AuthResponse registrar(String nombre, String email, RolUsuario rol) {
-        return restTestClient.post().uri("/api/v1/auth/register")
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(new RegisterRequest(nombre, email, "password123", rol))
-                .exchange()
-                .expectStatus().isCreated()
-                .expectBody(AuthResponse.class)
-                .returnResult()
-                .getResponseBody();
+    private Cuenta registrar(String nombre, String email, RolUsuario rol) {
+        return SesionDePrueba.registrarEIniciarSesion(restTestClient, nombre, email, rol);
     }
 
     @Test
@@ -63,9 +57,9 @@ class UsuarioControllerTest {
 
     @Test
     void registraVeterinarioYEditaSuPerfil() {
-        AuthResponse registro = registrar("Laura Gómez", "laura@correo.test", RolUsuario.VETERINARIO);
+        Cuenta registro = registrar("Laura Gómez", "laura@correo.test", RolUsuario.VETERINARIO);
         assertThat(registro.usuario().rol()).isEqualTo(RolUsuario.VETERINARIO);
-        String bearer = "Bearer " + registro.accessToken();
+        String bearer = "Bearer " + registro.token();
 
         UsuarioResponse actualizado = restTestClient.put().uri("/api/v1/usuarios/me")
                 .header("Authorization", bearer)
@@ -101,11 +95,11 @@ class UsuarioControllerTest {
 
     @Test
     void listaSoloVeterinariosActivos() {
-        AuthResponse vet = registrar("Dra. Marta Ríos", "marta.rios@clinica.test", RolUsuario.VETERINARIO);
-        AuthResponse admin = registrar("Admin Clínica", "admin.lista@clinica.test", RolUsuario.ADMINISTRADOR);
+        Cuenta vet = registrar("Dra. Marta Ríos", "marta.rios@clinica.test", RolUsuario.VETERINARIO);
+        Cuenta admin = registrar("Admin Clínica", "admin.lista@clinica.test", RolUsuario.ADMINISTRADOR);
 
         List<VeterinarioResponse> veterinarios = restTestClient.get().uri("/api/v1/usuarios/veterinarios")
-                .header("Authorization", "Bearer " + admin.accessToken())
+                .header("Authorization", "Bearer " + admin.token())
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody(new ParameterizedTypeReference<List<VeterinarioResponse>>() {
@@ -117,7 +111,7 @@ class UsuarioControllerTest {
                 .doesNotContain(admin.usuario().id());
 
         restTestClient.get().uri("/api/v1/usuarios/veterinarios/{id}", admin.usuario().id())
-                .header("Authorization", "Bearer " + admin.accessToken())
+                .header("Authorization", "Bearer " + admin.token())
                 .exchange()
                 .expectStatus().isNotFound();
     }

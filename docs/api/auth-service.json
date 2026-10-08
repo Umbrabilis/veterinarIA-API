@@ -104,8 +104,9 @@
     "/api/v1/auth/register": {
       "post": {
         "tags": [
-          "AutenticaciÃ³n"
+          "Autenticación"
         ],
+        "summary": "Crea una cuenta. No inicia sesión: después se usa /login",
         "operationId": "register",
         "requestBody": {
           "content": {
@@ -123,7 +124,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/AuthResponse"
+                  "$ref": "#/components/schemas/UsuarioResponse"
                 }
               }
             }
@@ -134,8 +135,9 @@
     "/api/v1/auth/login": {
       "post": {
         "tags": [
-          "AutenticaciÃ³n"
+          "Autenticación"
         ],
+        "summary": "Inicia sesión: el JWT queda en una cookie HttpOnly; el cuerpo trae el usuario",
         "operationId": "login",
         "requestBody": {
           "content": {
@@ -220,7 +222,7 @@
     "/api/v1/auth/me": {
       "get": {
         "tags": [
-          "AutenticaciÃ³n"
+          "Autenticación"
         ],
         "operationId": "me",
         "responses": {
@@ -257,6 +259,20 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "Autenticación"
+        ],
+        "summary": "Cierra la sesión borrando la cookie",
+        "operationId": "logout",
+        "responses": {
+          "200": {
+            "description": "OK"
           }
         }
       }
@@ -360,12 +376,6 @@
       "AuthResponse": {
         "type": "object",
         "properties": {
-          "accessToken": {
-            "type": "string"
-          },
-          "tokenType": {
-            "type": "string"
-          },
           "expiresInSeconds": {
             "type": "integer",
             "format": "int64"

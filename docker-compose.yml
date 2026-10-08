@@ -13,7 +13,8 @@ x-entorno-comun: &entorno-comun
   DB_PASSWORD: veterinaria_app
   SPRING_FLYWAY_USER: veterinaria
   SPRING_FLYWAY_PASSWORD: veterinaria
-  CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+  # Orígenes del frontend: Vite (shell 5173, remotes 5174/5175) y el frontend en Docker (3000).
+  CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:3000}
   AUTH_JWKS_URI: http://auth-service:8080/.well-known/jwks.json
   AUTH_SERVICE_URL: http://auth-service:8080
   PACIENTES_SERVICE_URL: http://pacientes-service:8080

@@ -12,7 +12,7 @@ cuando hay novedades (hoy, el resumen de consulta aprobado).
 
 ```mermaid
 flowchart LR
-    FE["Frontend React<br/>localhost:5173"] -->|HTTP/JSON + JWT| GW["API Gateway (nginx)<br/>localhost:8080"]
+    FE["Frontend React<br/>localhost:5173"] -->|"HTTP/JSON + cookie de sesión"| GW["API Gateway (nginx)<br/>localhost:8080"]
     GW --> AUTH["auth-service ×N"]
     GW --> PAC["pacientes-service ×N"]
     GW --> CIT["citas-service ×N"]
@@ -103,9 +103,9 @@ Cada paquete de negocio sigue el mismo patrón:
 
 Recorrido de una petición (agendar una cita):
 
-1. El frontend llama `POST http://localhost:8080/api/v1/citas` con `Authorization: Bearer <JWT>`.
+1. El frontend llama `POST http://localhost:8080/api/v1/citas`; el navegador adjunta la cookie de sesión.
 2. El gateway ve `/api/v1/citas` y elige una réplica de `citas-service`.
-3. `SecurityConfig` valida la firma del JWT con la llave pública de `auth-service`.
+3. `SecurityConfig` toma el JWT de la cookie y valida su firma con la llave pública de `auth-service`.
 4. `CitaController` valida el cuerpo y `CitaService.crear` pide la mascota a `pacientes-service` y el
    veterinario a `auth-service`, reenviando el JWT.
 5. Se guarda en `citas_db`. Si PostgreSQL detecta cruce de horario (restricción `EXCLUDE`), responde 409.
@@ -186,6 +186,32 @@ en `src/shared/validaciones.ts`: si cambias una, cambia la otra.
 
 Un dato inválido responde 400 con los mensajes en `detalles`.
 
+## Sesión: cookie HttpOnly
+
+El JWT no se guarda en el navegador con JavaScript (`localStorage`): lo emite `auth-service` en una cookie
+**HttpOnly**, que el navegador guarda y envía solo, y que ningún script puede leer. Así, un script inyectado (XSS) no
+puede robar el token.
+
+| Pieza | Dónde | Qué hace |
+|---|---|---|
+| Emitir la cookie | `auth-service/.../auth/CookieSesion.java` | `POST /auth/login` responde `Set-Cookie: veterinaria_sesion=<JWT>; HttpOnly; Path=/api; SameSite=Strict; Max-Age=3600`. El cuerpo ya no trae el token |
+| Borrarla | `POST /auth/logout` | Responde la misma cookie vencida (`Max-Age=0`) |
+| Leerla | `common/.../security/CookieOHeaderTokenResolver.java` | Los 4 servicios toman el JWT de `Authorization: Bearer` (llamadas entre servicios) o, si no viene, de la cookie. En rutas públicas la cookie se ignora, para que una cookie vencida no bloquee el login |
+| CORS con credenciales | `common/.../security/SecurityConfig.java` | `allowCredentials=true`: el navegador solo envía la cookie a los orígenes de `CORS_ALLOWED_ORIGINS` |
+| CSRF | `common/.../security/OrigenPermitidoFilter.java` | Una petición que cambia datos (POST, PUT, PATCH, DELETE) autenticada con la cookie solo se acepta si su `Origin` es un origen permitido o el propio gateway |
+
+Configuración (variables de entorno de `auth-service`):
+
+| Variable | Local | Producción (frontend y API en dominios distintos) |
+|---|---|---|
+| `SESION_COOKIE_SECURE` | `false` (HTTP) | `true` (solo HTTPS) |
+| `SESION_COOKIE_SAMESITE` | `Strict` | `None` (obligatorio entre dominios; exige `Secure`) |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173,…,http://localhost:3000` | La URL del frontend |
+| `JWT_EXPIRATION_MINUTES` | `60` | Duración de la sesión; al vencer, la API responde 401 y el frontend vuelve al login |
+
+El JWT sigue siendo sin estado: cerrar sesión borra la cookie del navegador, pero un token copiado antes seguiría
+siendo válido hasta que venza.
+
 ## Roles
 
 - `ADMINISTRADOR` y `VETERINARIO`: personal de la clínica, los únicos que usan el sistema.
@@ -198,7 +224,8 @@ Un dato inválido responde 400 con los mensajes en `detalles`.
 
 ## Endpoints (todos bajo el gateway `http://localhost:8080`)
 
-Todo requiere `Authorization: Bearer <JWT>` salvo lo marcado como público. Errores con el formato `ApiError`
+Todo requiere sesión salvo lo marcado como público: la cookie `veterinaria_sesion` (navegador) o
+`Authorization: Bearer <JWT>` (llamadas entre servicios, pruebas, Swagger). Errores con el formato `ApiError`
 (`timestamp`, `status`, `error`, `message`, `path`, `detalles`): 400 = datos inválidos, 401 = sin token o token
 inválido, 403 = sin permiso, 404 = no existe, 409 = conflicto, 422 = regla de negocio.
 
@@ -208,9 +235,10 @@ inválido, 403 = sin permiso, 404 = no existe, 409 = conflicto, 422 = regla de n
 
 | Método | Ruta | Quién | Descripción |
 |---|---|---|---|
-| POST | `/api/v1/auth/register` | pública | Crea usuario (`nombre`, `email`, `password`, `rol`) y devuelve JWT |
-| POST | `/api/v1/auth/login` | pública | Login por `email`/`password`, devuelve JWT |
-| GET | `/api/v1/auth/me` | personal | Usuario autenticado |
+| POST | `/api/v1/auth/register` | pública | Crea usuario (`nombre`, `email`, `password`, `rol`). No inicia sesión |
+| POST | `/api/v1/auth/login` | pública | Login por `email`/`password`. Deja el JWT en la cookie HttpOnly; el cuerpo trae `usuario` y `expiresInSeconds` |
+| POST | `/api/v1/auth/logout` | pública | Cierra la sesión (borra la cookie) |
+| GET | `/api/v1/auth/me` | personal | Usuario de la sesión actual (el frontend lo usa para saber si hay sesión) |
 | GET | `/api/v1/usuarios/me` | personal | Perfil del usuario |
 | PUT | `/api/v1/usuarios/me` | personal | Cambia el nombre |
 | PUT | `/api/v1/usuarios/me/password` | personal | Cambia la contraseña (`passwordActual`, `passwordNueva`) |
