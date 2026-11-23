@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -26,6 +27,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 import tech.veterinaria_api.common.RolUsuario;
+import tech.veterinaria_api.notificaciones.PublicadorNotificaciones;
+import tech.veterinaria_api.notificaciones.TipoNotificacion;
 import tech.veterinaria_api.consultas.dto.ConsultaResponse;
 import tech.veterinaria_api.consultas.dto.CrearConsultaRequest;
 import tech.veterinaria_api.consultas.dto.DatosClinicosRequest;
@@ -52,6 +55,9 @@ class ResumenControllerTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @MockitoBean
+    private PublicadorNotificaciones avisos;
 
     @MockitoBean
     private PacientesClient pacientesClient;
@@ -113,6 +119,9 @@ class ResumenControllerTest {
         assertThat(borrador.generado().hallazgos()).contains("Rinitis viral leve");
         assertThat(borrador.generado().tratamiento()).contains("2 veces al día");
         assertThat(borrador.contenidoFinal()).isNull();
+        verify(avisos).publicar(argThat(e -> e.tipo() == TipoNotificacion.RESUMEN_PENDIENTE
+                && veterinarioId.equals(e.destinatarioId()) && e.referenciaId().equals(borrador.id())
+                && !e.mensaje().contains("Carlos")));
         // Ningún dato personal del propietario en el contenido generado.
         assertThat(borrador.generado().toString()).doesNotContain("Carlos", "carlos@correo.test");
     }

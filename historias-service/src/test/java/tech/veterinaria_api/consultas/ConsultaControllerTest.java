@@ -3,7 +3,9 @@ package tech.veterinaria_api.consultas;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 import static org.mockito.BDDMockito.willThrow;
 
 import java.math.BigDecimal;
@@ -26,6 +28,8 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 
 import tech.veterinaria_api.common.AccesoDenegadoException;
 import tech.veterinaria_api.common.RolUsuario;
+import tech.veterinaria_api.notificaciones.PublicadorNotificaciones;
+import tech.veterinaria_api.notificaciones.TipoNotificacion;
 import tech.veterinaria_api.consultas.dto.ConsultaResponse;
 import tech.veterinaria_api.consultas.dto.CrearConsultaRequest;
 import tech.veterinaria_api.consultas.dto.DatosClinicosRequest;
@@ -50,6 +54,9 @@ class ConsultaControllerTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @MockitoBean
+    private PublicadorNotificaciones avisos;
 
     @MockitoBean
     private PacientesClient pacientesClient;

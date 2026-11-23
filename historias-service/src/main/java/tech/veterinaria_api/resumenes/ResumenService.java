@@ -19,6 +19,9 @@ import tech.veterinaria_api.common.RecursoNoEncontradoException;
 import tech.veterinaria_api.common.ReglaNegocioException;
 import tech.veterinaria_api.consultas.Consulta;
 import tech.veterinaria_api.consultas.ConsultaService;
+import tech.veterinaria_api.notificaciones.EventoNotificacion;
+import tech.veterinaria_api.notificaciones.PublicadorNotificaciones;
+import tech.veterinaria_api.notificaciones.TipoNotificacion;
 import tech.veterinaria_api.remoto.PacientesClient;
 import tech.veterinaria_api.remoto.PacientesClient.MascotaRemota;
 import tech.veterinaria_api.remoto.PacientesClient.PropietarioRemoto;
@@ -39,6 +42,7 @@ public class ResumenService {
     private final PacientesClient pacientesClient;
     private final GeneradorResumen generador;
     private final NotificadorResumen notificador;
+    private final PublicadorNotificaciones avisos;
     private final TransactionTemplate transaccion;
     private final ZoneId zona;
 
@@ -47,12 +51,14 @@ public class ResumenService {
 
     public ResumenService(ResumenConsultaRepository resumenRepository, ConsultaService consultaService,
             PacientesClient pacientesClient, GeneradorResumen generador, NotificadorResumen notificador,
-            PlatformTransactionManager transactionManager, @Value("${app.zona-horaria:America/Bogota}") String zona) {
+            PublicadorNotificaciones avisos, PlatformTransactionManager transactionManager,
+            @Value("${app.zona-horaria:America/Bogota}") String zona) {
         this.resumenRepository = resumenRepository;
         this.consultaService = consultaService;
         this.pacientesClient = pacientesClient;
         this.generador = generador;
         this.notificador = notificador;
+        this.avisos = avisos;
         this.transaccion = new TransactionTemplate(transactionManager);
         this.zona = ZoneId.of(zona);
     }
@@ -71,12 +77,17 @@ public class ResumenService {
         }
         MascotaRemota mascota = pacientesClient.obtenerMascota(consulta.getMascotaId());
         ResumenGenerado generado = generador.generar(DatosParaResumen.de(consulta, mascota, LocalDate.now(zona)));
+        ResumenConsulta borrador;
         try {
-            return resumenRepository.saveAndFlush(ResumenConsulta.borrador(consulta.getId(),
+            borrador = resumenRepository.saveAndFlush(ResumenConsulta.borrador(consulta.getId(),
                     consulta.getVeterinarioId(), generado.modelo(), generado.versionPrompt(), generado.contenido()));
         } catch (DataIntegrityViolationException e) {
             throw new ConflictoException("La consulta ya tiene un resumen");
         }
+        avisos.publicar(EventoNotificacion.para(consulta.getVeterinarioId(), TipoNotificacion.RESUMEN_PENDIENTE,
+                "Resumen listo para revisar",
+                "El resumen de la consulta de " + mascota.nombre() + " está listo para tu revisión", borrador.getId()));
+        return borrador;
     }
 
     public ResumenConsulta generarBorradorPara(UUID consultaId, UsuarioActual usuario) {
@@ -124,7 +135,7 @@ public class ResumenService {
             throw new ReglaNegocioException("El propietario no tiene email registrado");
         }
 
-        return transaccion.execute(estado -> {
+        ResumenConsulta enviado = transaccion.execute(estado -> {
             ResumenConsulta resumen = resumenRepository.bloquear(id)
                     .orElseThrow(() -> new RecursoNoEncontradoException("Resumen no encontrado"));
             exigirEstado(resumen, EstadoResumen.APROBADO, MENSAJE_SIN_APROBACION);
@@ -132,6 +143,11 @@ public class ResumenService {
             resumen.marcarEnviado(Instant.now());
             return resumen;
         });
+        // Sin datos del propietario en el aviso: solo el nombre de la mascota.
+        avisos.publicar(EventoNotificacion.para(enviado.getVeterinarioId(), TipoNotificacion.RESUMEN_ENVIADO,
+                "Resumen enviado", "Se envió al dueño de " + mascota.nombre() + " el resumen de la consulta",
+                enviado.getId()));
+        return enviado;
     }
 
     /** Personal de la clínica: siempre. Propietario: solo si ya se le envió y la consulta es de su mascota. */

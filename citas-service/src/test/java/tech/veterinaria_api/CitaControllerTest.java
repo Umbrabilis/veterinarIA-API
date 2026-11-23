@@ -2,7 +2,9 @@ package tech.veterinaria_api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 import static org.mockito.BDDMockito.willReturn;
 import static org.mockito.BDDMockito.willThrow;
 
@@ -29,6 +31,8 @@ import tech.veterinaria_api.citas.dto.CitaResponse;
 import tech.veterinaria_api.citas.dto.CrearCitaRequest;
 import tech.veterinaria_api.common.AccesoDenegadoException;
 import tech.veterinaria_api.common.RolUsuario;
+import tech.veterinaria_api.notificaciones.PublicadorNotificaciones;
+import tech.veterinaria_api.notificaciones.TipoNotificacion;
 import tech.veterinaria_api.remoto.PacientesClient;
 import tech.veterinaria_api.remoto.PacientesClient.MascotaRemota;
 import tech.veterinaria_api.remoto.UsuariosClient;
@@ -51,6 +55,9 @@ class CitaControllerTest {
 
     @Autowired
     private TokensDePrueba tokens;
+
+    @MockitoBean
+    private PublicadorNotificaciones avisos;
 
     @MockitoBean
     private PacientesClient pacientesClient;
@@ -103,6 +110,8 @@ class CitaControllerTest {
         assertThat(cita.estado()).isEqualTo(EstadoCita.PROGRAMADA);
         assertThat(cita.propietarioId()).isEqualTo(propietarioId);
         assertThat(cita.mascotaNombre()).isEqualTo("Luna");
+        verify(avisos).publicar(argThat(e -> e.tipo() == TipoNotificacion.CITA_AGENDADA
+                && e.destinatarioId() == null && e.mensaje().contains("Luna con Dra. Marta Ríos")));
 
         restTestClient.post().uri("/api/v1/citas")
                 .header("Authorization", vet())

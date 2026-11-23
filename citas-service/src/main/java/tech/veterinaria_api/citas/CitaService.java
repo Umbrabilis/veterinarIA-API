@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
 
@@ -18,6 +19,9 @@ import tech.veterinaria_api.common.AccesoDenegadoException;
 import tech.veterinaria_api.common.ConflictoException;
 import tech.veterinaria_api.common.RecursoNoEncontradoException;
 import tech.veterinaria_api.common.ReglaNegocioException;
+import tech.veterinaria_api.notificaciones.EventoNotificacion;
+import tech.veterinaria_api.notificaciones.PublicadorNotificaciones;
+import tech.veterinaria_api.notificaciones.TipoNotificacion;
 import tech.veterinaria_api.remoto.PacientesClient;
 import tech.veterinaria_api.remoto.PacientesClient.MascotaRemota;
 import tech.veterinaria_api.remoto.UsuariosClient;
@@ -33,12 +37,14 @@ import tech.veterinaria_api.security.UsuarioActual;
 public class CitaService {
 
     private static final ZoneId ZONA_CLINICA = ZoneId.of("America/Bogota");
+    private static final DateTimeFormatter FORMATO_HORA = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
     private static final Duration DURACION_MINIMA = Duration.ofMinutes(10);
     private static final Duration DURACION_MAXIMA = Duration.ofHours(4);
 
     private final CitaRepository citaRepository;
     private final PacientesClient pacientesClient;
     private final UsuariosClient usuariosClient;
+    private final PublicadorNotificaciones avisos;
 
     public Cita crear(CrearCitaRequest request, UsuarioActual usuario) {
         if (!usuario.esPersonalClinico() && !usuario.esPropietario()) {
@@ -65,7 +71,9 @@ public class CitaService {
                 .estado(EstadoCita.PROGRAMADA)
                 .creadaPor(usuario.id())
                 .build();
-        return guardar(cita);
+        Cita guardada = guardar(cita);
+        avisar(guardada, TipoNotificacion.CITA_AGENDADA, "Nueva cita");
+        return guardada;
     }
 
     public Cita obtener(UUID id, UsuarioActual usuario) {
@@ -105,7 +113,9 @@ public class CitaService {
             throw new ReglaNegocioException("La cita ya pasó; comunícate con la clínica");
         }
         cita.setEstado(EstadoCita.CANCELADA);
-        return guardar(cita);
+        Cita cancelada = guardar(cita);
+        avisar(cancelada, TipoNotificacion.CITA_CANCELADA, "Cita cancelada");
+        return cancelada;
     }
 
     public Cita reprogramar(UUID id, Instant inicio, Instant fin, UsuarioActual usuario) {
@@ -118,7 +128,9 @@ public class CitaService {
         cita.setInicio(inicio);
         cita.setFin(fin);
         cita.setEstado(EstadoCita.PROGRAMADA);
-        return guardar(cita);
+        Cita reprogramada = guardar(cita);
+        avisar(reprogramada, TipoNotificacion.CITA_REPROGRAMADA, "Cita reprogramada");
+        return reprogramada;
     }
 
     public Cita cambiarEstado(UUID id, EstadoCita nuevo, UsuarioActual usuario) {
@@ -131,7 +143,11 @@ public class CitaService {
                     "No se puede pasar una cita de " + cita.getEstado() + " a " + nuevo);
         }
         cita.setEstado(nuevo);
-        return guardar(cita);
+        Cita actualizada = guardar(cita);
+        if (nuevo == EstadoCita.CANCELADA) {
+            avisar(actualizada, TipoNotificacion.CITA_CANCELADA, "Cita cancelada");
+        }
+        return actualizada;
     }
 
     /**
@@ -146,6 +162,13 @@ public class CitaService {
             throw new AccesoDenegadoException();
         }
         pacientesClient.obtenerMascota(cita.getMascotaId());
+    }
+
+    /** Aviso para todo el personal: mascota, veterinario y hora; nunca datos del propietario. */
+    private void avisar(Cita cita, TipoNotificacion tipo, String titulo) {
+        String hora = FORMATO_HORA.format(cita.getInicio().atZone(ZONA_CLINICA));
+        avisos.publicar(EventoNotificacion.paraTodos(tipo, titulo,
+                cita.getMascotaNombre() + " con " + cita.getVeterinarioNombre() + " el " + hora, cita.getId()));
     }
 
     private Cita guardar(Cita cita) {
