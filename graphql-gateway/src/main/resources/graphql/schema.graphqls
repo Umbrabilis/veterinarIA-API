@@ -1,0 +1,143 @@
+# Vista unificada de la clínica. Cada campo se resuelve llamando al microservicio dueño del dato con el JWT del
+# usuario, así que GraphQL aplica las mismas reglas de acceso que la API REST. Solo lectura: los cambios siguen
+# por REST, donde viven las validaciones y reglas de negocio.
+
+type Query {
+    "Usuario de la sesión actual."
+    yo: Usuario
+    "Veterinarios activos (para agendar)."
+    veterinarios: [Usuario!]!
+    mascota(id: ID!): Mascota
+    mascotas(busqueda: String, propietarioId: ID, pagina: Int = 0, tamano: Int = 20): PaginaMascotas!
+    propietario(id: ID!): Propietario
+    propietarios(busqueda: String, pagina: Int = 0, tamano: Int = 20): PaginaPropietarios!
+    "Agenda filtrada; fechas ISO-8601 (2026-11-24T00:00:00Z)."
+    agenda(desde: String, hasta: String, veterinarioId: ID): [Cita!]!
+    "Bandeja de resúmenes IA por estado."
+    resumenes(estado: EstadoResumen = BORRADOR): [Resumen!]!
+    "Controles y refuerzos de vacuna de los próximos días."
+    seguimientoPendiente(dias: Int = 30): [Seguimiento!]!
+}
+
+enum EstadoResumen {
+    BORRADOR
+    APROBADO
+    ENVIADO
+}
+
+type Usuario {
+    id: ID!
+    nombre: String!
+    email: String
+    rol: String
+}
+
+type Propietario {
+    id: ID!
+    nombre: String!
+    documento: String
+    telefono: String
+    email: String
+    direccion: String
+    mascotas: [Mascota!]!
+}
+
+type PaginaPropietarios {
+    contenido: [Propietario!]!
+    pagina: Int!
+    tamano: Int!
+    totalElementos: Int!
+    totalPaginas: Int!
+}
+
+type Mascota {
+    id: ID!
+    nombre: String!
+    especie: String
+    raza: String
+    sexo: String
+    color: String
+    fechaNacimiento: String
+    pesoKg: Float
+    activo: Boolean
+    propietarioId: ID
+    propietario: Propietario
+    citas: [Cita!]!
+    consultas: [Consulta!]!
+    vacunas: [Vacuna!]!
+}
+
+type PaginaMascotas {
+    contenido: [Mascota!]!
+    pagina: Int!
+    tamano: Int!
+    totalElementos: Int!
+    totalPaginas: Int!
+}
+
+type Cita {
+    id: ID!
+    mascotaId: ID
+    mascotaNombre: String
+    veterinarioId: ID
+    veterinarioNombre: String
+    inicio: String
+    fin: String
+    motivo: String
+    estado: String
+    mascota: Mascota
+}
+
+type Consulta {
+    id: ID!
+    mascotaId: ID
+    veterinarioId: ID
+    motivo: String
+    sintomas: String
+    diagnostico: String
+    tratamiento: String
+    indicaciones: String
+    proximoControl: String
+    estado: String
+    cerradaEn: String
+    createdAt: String
+    "Resumen IA de la consulta, si ya se generó."
+    resumen: Resumen
+}
+
+type Vacuna {
+    id: ID!
+    mascotaId: ID
+    nombre: String
+    lote: String
+    fechaAplicacion: String
+    proximaDosis: String
+}
+
+type ContenidoResumen {
+    hallazgos: String
+    tratamiento: String
+    cuidadosEnCasa: String
+    proximaVisita: String
+}
+
+type Resumen {
+    id: ID!
+    consultaId: ID
+    estado: String
+    modelo: String
+    generado: ContenidoResumen
+    contenidoFinal: ContenidoResumen
+    aprobadoEn: String
+    enviadoEn: String
+    consulta: Consulta
+}
+
+type Seguimiento {
+    tipo: String
+    fecha: String
+    mascotaId: ID
+    referenciaId: ID
+    descripcion: String
+    mascota: Mascota
+}
