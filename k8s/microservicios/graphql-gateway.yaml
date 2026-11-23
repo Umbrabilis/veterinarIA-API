@@ -1,0 +1,89 @@
+# graphql-gateway: Deployment + Service + HPA (autoescalado horizontal por CPU).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: graphql-gateway
+  labels:
+    app: graphql-gateway
+    parte-de: veterinaria
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: graphql-gateway
+  template:
+    metadata:
+      labels:
+        app: graphql-gateway
+        parte-de: veterinaria
+    spec:
+      containers:
+        - name: graphql-gateway
+          image: veterinaria/graphql-gateway:1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: veterinaria-config
+          env:
+          resources:
+            requests:
+              cpu: 100m
+              memory: 320Mi
+            limits:
+              cpu: "1"
+              memory: 640Mi
+          # Arranque lento en un nodo pequeño: hasta 5 minutos antes de declararlo fallido.
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 20
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: graphql-gateway
+  labels:
+    app: graphql-gateway
+spec:
+  selector:
+    app: graphql-gateway
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+# Escala entre 1 y 3 réplicas según el uso de CPU (requiere metrics-server, incluido en k3s).
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: graphql-gateway
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: graphql-gateway
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

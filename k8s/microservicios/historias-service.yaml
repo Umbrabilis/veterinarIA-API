@@ -1,0 +1,115 @@
+# historias-service: Deployment + Service + HPA (autoescalado horizontal por CPU).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: historias-service
+  labels:
+    app: historias-service
+    parte-de: veterinaria
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: historias-service
+  template:
+    metadata:
+      labels:
+        app: historias-service
+        parte-de: veterinaria
+    spec:
+      containers:
+        - name: historias-service
+          image: veterinaria/historias-service:1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: veterinaria-config
+          env:
+            - name: DB_URL
+              value: jdbc:postgresql://postgres:5432/historias_db
+            - name: DB_USER
+              value: veterinaria_app
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: veterinaria-secretos
+                  key: APP_DB_PASSWORD
+            - name: SPRING_FLYWAY_USER
+              value: veterinaria
+            - name: SPRING_FLYWAY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: veterinaria-secretos
+                  key: POSTGRES_PASSWORD
+            - name: MAIL_HOST
+              value: mailpit
+            - name: MAIL_PORT
+              value: "1025"
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: veterinaria-secretos
+                  key: ANTHROPIC_API_KEY
+                  optional: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 320Mi
+            limits:
+              cpu: "1"
+              memory: 640Mi
+          # Arranque lento en un nodo pequeño: hasta 5 minutos antes de declararlo fallido.
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 20
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: historias-service
+  labels:
+    app: historias-service
+spec:
+  selector:
+    app: historias-service
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+# Escala entre 1 y 3 réplicas según el uso de CPU (requiere metrics-server, incluido en k3s).
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: historias-service
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: historias-service
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

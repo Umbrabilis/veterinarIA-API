@@ -18,6 +18,9 @@ x-entorno-comun: &entorno-comun
   AUTH_JWKS_URI: http://auth-service:8080/.well-known/jwks.json
   AUTH_SERVICE_URL: http://auth-service:8080
   PACIENTES_SERVICE_URL: http://pacientes-service:8080
+  CITAS_SERVICE_URL: http://citas-service:8080
+  HISTORIAS_SERVICE_URL: http://historias-service:8080
+  REDIS_HOST: redis
 
 x-microservicio: &microservicio
   restart: unless-stopped
@@ -101,6 +104,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
 
   historias-service:
     <<: *microservicio
@@ -119,6 +124,41 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Bus de eventos (pub/sub) para las notificaciones y su historial reciente.
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  notificaciones-service:
+    <<: *microservicio
+    image: veterinaria/notificaciones-service
+    build:
+      context: .
+      args:
+        SERVICIO: notificaciones-service
+    environment:
+      <<: *entorno-comun
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  graphql-gateway:
+    <<: *microservicio
+    image: veterinaria/graphql-gateway
+    build:
+      context: .
+      args:
+        SERVICIO: graphql-gateway
+    environment:
+      <<: *entorno-comun
 
   gateway:
     image: nginx:1.27-alpine
@@ -132,6 +172,8 @@ services:
       - pacientes-service
       - citas-service
       - historias-service
+      - notificaciones-service
+      - graphql-gateway
 
   swagger-ui:
     image: swaggerapi/swagger-ui
@@ -141,7 +183,8 @@ services:
         [{"url":"/v3/api-docs/auth-service","name":"auth-service"},
         {"url":"/v3/api-docs/pacientes-service","name":"pacientes-service"},
         {"url":"/v3/api-docs/citas-service","name":"citas-service"},
-        {"url":"/v3/api-docs/historias-service","name":"historias-service"}]
+        {"url":"/v3/api-docs/historias-service","name":"historias-service"},
+        {"url":"/v3/api-docs/notificaciones-service","name":"notificaciones-service"}]
 
   mailpit:
     image: axllent/mailpit

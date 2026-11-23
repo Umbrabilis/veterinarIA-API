@@ -1,0 +1,31 @@
+# Despliegue completo:  kubectl kustomize --load-restrictor=LoadRestrictionsNone k8s | kubectl apply -f -
+# (antes: k8s/crear-secretos.sh). Ver k8s/README.md.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: veterinaria
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - infra/postgres.yaml
+  - infra/redis.yaml
+  - infra/mailpit.yaml
+  - infra/gateway.yaml
+  - microservicios/auth-service.yaml
+  - microservicios/pacientes-service.yaml
+  - microservicios/citas-service.yaml
+  - microservicios/historias-service.yaml
+  - microservicios/notificaciones-service.yaml
+  - microservicios/graphql-gateway.yaml
+  - frontend/web-shell.yaml
+  - frontend/web-auth.yaml
+  - frontend/web-management.yaml
+configMapGenerator:
+  - name: postgres-init
+    files:
+      - ../docker/postgres/init/01-crear-bases.sql
+      - ../docker/postgres/init/02-rol-aplicacion.sh
+  - name: gateway-nginx
+    files:
+      - default.conf=gateway/nginx.conf
+generatorOptions:
+  disableNameSuffixHash: false

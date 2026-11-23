@@ -14,6 +14,8 @@ COPY auth-service/ auth-service/
 COPY pacientes-service/ pacientes-service/
 COPY citas-service/ citas-service/
 COPY historias-service/ historias-service/
+COPY notificaciones-service/ notificaciones-service/
+COPY graphql-gateway/ graphql-gateway/
 
 RUN --mount=type=cache,target=/root/.m2 \
     test -n "$SERVICIO" \
