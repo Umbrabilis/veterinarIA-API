@@ -1,5 +1,6 @@
 package tech.veterinaria_api.usuarios;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -17,4 +18,6 @@ public interface UsuarioRepository extends JpaRepository<Usuario, UUID> {
     List<Usuario> findByRolAndActivoTrueOrderByNombreAsc(RolUsuario rol);
 
     Optional<Usuario> findByIdAndRolAndActivoTrue(UUID id, RolUsuario rol);
+
+    List<Usuario> findByRolInOrderByNombreAsc(Collection<RolUsuario> roles);
 }

@@ -17,6 +17,8 @@ spec:
         app: notificaciones-service
         parte-de: veterinaria
     spec:
+      # Sin variables automáticas de los Services (p. ej. REDIS_PORT=tcp://...), que pisan nuestra configuración.
+      enableServiceLinks: false
       containers:
         - name: notificaciones-service
           image: veterinaria/notificaciones-service:1.0

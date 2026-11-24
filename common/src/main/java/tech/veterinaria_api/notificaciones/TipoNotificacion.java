@@ -3,7 +3,12 @@ package tech.veterinaria_api.notificaciones;
 public enum TipoNotificacion {
     CITA_AGENDADA,
     CITA_REPROGRAMADA,
+    CITA_CONFIRMADA,
     CITA_CANCELADA,
+    MASCOTA_REGISTRADA,
+    CONSULTA_ABIERTA,
+    CONSULTA_ENMENDADA,
+    VACUNA_REGISTRADA,
     RESUMEN_PENDIENTE,
     RESUMEN_ENVIADO
 }

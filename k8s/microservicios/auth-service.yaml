@@ -17,6 +17,8 @@ spec:
         app: auth-service
         parte-de: veterinaria
     spec:
+      # Sin variables automáticas de los Services (p. ej. REDIS_PORT=tcp://...), que pisan nuestra configuración.
+      enableServiceLinks: false
       containers:
         - name: auth-service
           image: veterinaria/auth-service:1.0

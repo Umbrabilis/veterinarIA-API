@@ -32,10 +32,12 @@ flowchart LR
 | Módulo | Responsabilidad | Base de datos | Rutas en el gateway |
 |---|---|---|---|
 | `common` | Librería compartida: `ApiError` y manejo de errores, `Patrones` de validación, seguridad JWT, `UsuarioActual`, cliente HTTP entre servicios, OpenAPI. Test-jar con JWT de prueba y PostgreSQL (Testcontainers) | — | — |
-| `auth-service` | Registro, login, emisión de JWT (RS256) y su JWKS, perfil del usuario, directorio de veterinarios | `auth_db` | `/api/v1/auth/**`, `/api/v1/usuarios/**` |
+| `auth-service` | Registro, login, emisión de JWT (RS256) y su JWKS, perfil del usuario, directorio de veterinarios, gestión de cuentas del personal | `auth_db` | `/api/v1/auth/**`, `/api/v1/usuarios/**` |
 | `pacientes-service` | Propietarios (con autorización de tratamiento de datos, Ley 1581) y mascotas | `pacientes_db` | `/api/v1/propietarios/**`, `/api/v1/mascotas/**` |
 | `citas-service` | Agenda: agendar, reprogramar, cancelar, estados. Sin solapamientos (`EXCLUDE USING gist`) | `citas_db` | `/api/v1/citas/**` |
 | `historias-service` | Historia clínica inmutable (consultas, enmiendas), vacunas, seguimiento y resúmenes IA | `historias_db` | `/api/v1/consultas/**`, `/vacunas`, `/seguimiento`, `/resumenes` |
+| `notificaciones-service` | Avisos en tiempo real por WebSocket (eventos por Redis pub/sub) | Redis | `/api/v1/notificaciones/**` |
+| `graphql-gateway` | API GraphQL de solo lectura sobre los demás servicios | — | `/api/v1/graphql`, `/graphiql` |
 
 Cada microservicio es una aplicación Spring Boot independiente, con su propia base de datos. Ninguno lee tablas
 de otro: cuando necesita un dato ajeno lo pide por HTTP reenviando el JWT del usuario (token relay), y el
@@ -168,6 +170,87 @@ Límites actuales: en local PostgreSQL es un solo contenedor (los servicios esca
 uno solo; en la nube se reemplazan por una base administrada y el balanceador del proveedor. Los servicios se
 llaman entre sí de forma síncrona: si `pacientes-service` cae, crear citas responde 502 hasta que vuelva.
 
+## Notificaciones en tiempo real (WebSocket)
+
+`notificaciones-service` entrega avisos al personal en tiempo real:
+
+```text
+citas-service ──┐   publica en Redis      ┌─► réplica 1 de notificaciones-service ──► WebSocket ──► navegadores
+                ├──► canal pub/sub ───────┤
+historias-svc ──┘   (+ historial)         └─► réplica 2 de notificaciones-service ──► WebSocket ──► navegadores
+```
+
+- Eventos: cita agendada, reprogramada o cancelada (para todo el personal); resumen IA listo para revisar o enviado
+  (para el veterinario de la consulta). Nunca llevan datos personales del propietario.
+- `ws(s)://<gateway>/api/v1/notificaciones/ws`: se autentica con la cookie de sesión (por eso está bajo `/api`) y solo
+  acepta conexiones desde los orígenes permitidos. Nginx deja pasar el `Upgrade: websocket`.
+- `GET /api/v1/notificaciones/recientes?limite=20`: últimos avisos del usuario (historial en Redis).
+- Cada réplica recibe todos los eventos de Redis y los entrega a sus propias conexiones: escala horizontalmente.
+- Si Redis no responde, la operación de negocio (agendar, enviar) sigue; solo se pierde el aviso.
+
+## GraphQL
+
+`graphql-gateway` expone una API GraphQL de **solo lectura** en `/api/v1/graphql` (consola en `/graphiql`), detrás de
+Nginx. Cada campo se resuelve llamando al microservicio dueño del dato con el JWT del usuario, así que aplica las
+mismas reglas de acceso que REST. Ejemplo:
+
+```graphql
+{
+  mascota(id: "...") {
+    nombre especie
+    propietario { nombre telefono }
+    citas { inicio motivo estado veterinarioNombre }
+    consultas { diagnostico estado resumen { estado contenidoFinal { cuidadosEnCasa } } }
+    vacunas { nombre proximaDosis }
+  }
+}
+```
+
+Consultas raíz: `yo`, `veterinarios`, `mascota`, `mascotas`, `propietario`, `propietarios`, `agenda`, `resumenes`,
+`seguimientoPendiente`. Los cambios se siguen haciendo por REST.
+
+## Despliegue en Kubernetes (AWS)
+
+`k8s/` tiene los manifiestos (kustomize) para un clúster **k3s**:
+
+| Pieza | Qué es |
+|---|---|
+| `microservicios/*.yaml` | Por servicio: Deployment (probes de arranque, disponibilidad y vida; límites de memoria), Service y **HPA** (1 a 3 réplicas al 70 % de CPU) |
+| `infra/postgres.yaml` | PostgreSQL 16 en StatefulSet con volumen persistente de 5 GB |
+| `infra/redis.yaml`, `infra/mailpit.yaml` | Bus de eventos y correo de prueba (`/correos/`) |
+| `infra/gateway.yaml` + `gateway/nginx.conf`, `rutas.inc` | Nginx como única entrada (LoadBalancer en los puertos 80 y 443): API, GraphQL, WebSocket y el frontend |
+| `gateway/https/servidor.conf` | Servidor HTTPS de Nginx; solo se activa si el servidor obtuvo certificado |
+| `frontend/*.yaml` | Las 3 apps de Module Federation, servidas por el mismo gateway (un solo origen) |
+| `crear-secretos.sh` | Contraseñas de PostgreSQL y llaves JWT aleatorias, como Secrets (nunca en git) |
+
+**Crear el servidor en AWS** (desde AWS CloudShell, que ya tiene el CLI y tus permisos):
+
+```bash
+curl -sO https://raw.githubusercontent.com/Umbrabilis/veterinarIA-API/feature/notificaciones-graphql-k8s/k8s/aws/crear-servidor.sh
+bash crear-servidor.sh
+```
+
+Crea una EC2 `m7i-flex.large` (2 vCPU, 8 GB; elegible en el plan gratuito con créditos) con un grupo de seguridad
+(HTTP y HTTPS públicos, SSH solo desde EC2 Instance Connect) y una IP elástica. Al arrancar,
+`k8s/aws/instalar-servidor.sh` instala Docker y k3s, pide el certificado HTTPS, clona las ramas publicadas, construye
+las imágenes, crea los secretos y aplica los manifiestos (~25 minutos).
+
+**HTTPS:** el dominio es `<ip-con-guiones>.sslip.io` (DNS público gratuito que resuelve a la IP del nombre) y el
+certificado es de Let's Encrypt, obtenido y renovado por certbot en el servidor. Nginx termina el HTTPS, redirige HTTP a
+HTTPS y la cookie de sesión pasa a `Secure`. Si el certificado no se obtiene, el sistema queda funcionando por HTTP.
+Progreso: `aws ec2 get-console-output --instance-id <id> --latest --output text | grep VETERINARIA`.
+
+Operación:
+
+```bash
+sudo k3s kubectl -n veterinaria get pods,hpa        # estado y autoescalado
+sudo k3s kubectl -n veterinaria logs deploy/citas-service
+```
+
+Costo: la instancia se cobra por hora mientras está encendida. Detenerla (`aws ec2 stop-instances --instance-ids <id>`)
+deja de cobrar el cómputo; el disco y la IP elástica siguen costando poco (la IP no cambia, así que el dominio y el
+certificado siguen valiendo).
+
 ## Validación de datos
 
 `common/Patrones.java` concentra las expresiones regulares de los DTO. El frontend replica las mismas reglas
@@ -243,6 +326,9 @@ inválido, 403 = sin permiso, 404 = no existe, 409 = conflicto, 422 = regla de n
 | PUT | `/api/v1/usuarios/me` | personal | Cambia el nombre |
 | PUT | `/api/v1/usuarios/me/password` | personal | Cambia la contraseña (`passwordActual`, `passwordNueva`) |
 | GET | `/api/v1/usuarios/veterinarios` | personal | Veterinarios activos (para agendar) |
+| GET | `/api/v1/usuarios` | admin | Cuentas del personal (administradores y veterinarios) |
+| POST | `/api/v1/usuarios` | admin | Crea una cuenta con contraseña inicial (`nombre`, `email`, `password`, `rol`) |
+| PUT | `/api/v1/usuarios/{id}` | admin | Cambia `nombre`, `rol` y `activo`. El email no se edita; un admin no puede quitarse el rol ni desactivarse (422) |
 
 ### pacientes-service
 

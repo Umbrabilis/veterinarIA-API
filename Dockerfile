@@ -19,7 +19,7 @@ COPY graphql-gateway/ graphql-gateway/
 
 RUN --mount=type=cache,target=/root/.m2 \
     test -n "$SERVICIO" \
-    && ./mvnw -B -q -pl "$SERVICIO" -am -DskipTests package \
+    && sh ./mvnw -B -q -pl "$SERVICIO" -am -DskipTests package \
     && cp "$SERVICIO"/target/"$SERVICIO"-*.jar /app/app.jar
 
 # --- Run stage ---
