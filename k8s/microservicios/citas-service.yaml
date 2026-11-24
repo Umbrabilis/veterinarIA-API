@@ -17,6 +17,8 @@ spec:
         app: citas-service
         parte-de: veterinaria
     spec:
+      # Sin variables automáticas de los Services (p. ej. REDIS_PORT=tcp://...), que pisan nuestra configuración.
+      enableServiceLinks: false
       containers:
         - name: citas-service
           image: veterinaria/citas-service:1.0
