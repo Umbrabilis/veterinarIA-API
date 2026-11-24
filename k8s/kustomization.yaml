@@ -27,5 +27,6 @@ configMapGenerator:
   - name: gateway-nginx
     files:
       - default.conf=gateway/nginx.conf
+      - rutas.inc=gateway/rutas.inc
 generatorOptions:
   disableNameSuffixHash: false

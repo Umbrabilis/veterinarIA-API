@@ -218,7 +218,8 @@ Consultas raíz: `yo`, `veterinarios`, `mascota`, `mascotas`, `propietario`, `pr
 | `microservicios/*.yaml` | Por servicio: Deployment (probes de arranque, disponibilidad y vida; límites de memoria), Service y **HPA** (1 a 3 réplicas al 70 % de CPU) |
 | `infra/postgres.yaml` | PostgreSQL 16 en StatefulSet con volumen persistente de 5 GB |
 | `infra/redis.yaml`, `infra/mailpit.yaml` | Bus de eventos y correo de prueba (`/correos/`) |
-| `infra/gateway.yaml` + `gateway/nginx.conf` | Nginx como única entrada (LoadBalancer en el puerto 80): API, GraphQL, WebSocket y el frontend |
+| `infra/gateway.yaml` + `gateway/nginx.conf`, `rutas.inc` | Nginx como única entrada (LoadBalancer en los puertos 80 y 443): API, GraphQL, WebSocket y el frontend |
+| `gateway/https/servidor.conf` | Servidor HTTPS de Nginx; solo se activa si el servidor obtuvo certificado |
 | `frontend/*.yaml` | Las 3 apps de Module Federation, servidas por el mismo gateway (un solo origen) |
 | `crear-secretos.sh` | Contraseñas de PostgreSQL y llaves JWT aleatorias, como Secrets (nunca en git) |
 
@@ -230,8 +231,13 @@ bash crear-servidor.sh
 ```
 
 Crea una EC2 `m7i-flex.large` (2 vCPU, 8 GB; elegible en el plan gratuito con créditos) con un grupo de seguridad
-(HTTP público, SSH solo desde EC2 Instance Connect). Al arrancar, `k8s/aws/instalar-servidor.sh` instala Docker y
-k3s, clona las ramas publicadas, construye las imágenes, crea los secretos y aplica los manifiestos (~25 minutos).
+(HTTP y HTTPS públicos, SSH solo desde EC2 Instance Connect) y una IP elástica. Al arrancar,
+`k8s/aws/instalar-servidor.sh` instala Docker y k3s, pide el certificado HTTPS, clona las ramas publicadas, construye
+las imágenes, crea los secretos y aplica los manifiestos (~25 minutos).
+
+**HTTPS:** el dominio es `<ip-con-guiones>.sslip.io` (DNS público gratuito que resuelve a la IP del nombre) y el
+certificado es de Let's Encrypt, obtenido y renovado por certbot en el servidor. Nginx termina el HTTPS, redirige HTTP a
+HTTPS y la cookie de sesión pasa a `Secure`. Si el certificado no se obtiene, el sistema queda funcionando por HTTP.
 Progreso: `aws ec2 get-console-output --instance-id <id> --latest --output text | grep VETERINARIA`.
 
 Operación:
@@ -242,7 +248,8 @@ sudo k3s kubectl -n veterinaria logs deploy/citas-service
 ```
 
 Costo: la instancia se cobra por hora mientras está encendida. Detenerla (`aws ec2 stop-instances --instance-ids <id>`)
-deja de cobrar el cómputo (el disco sigue costando muy poco); al encenderla cambia la IP pública.
+deja de cobrar el cómputo; el disco y la IP elástica siguen costando poco (la IP no cambia, así que el dominio y el
+certificado siguen valiendo).
 
 ## Validación de datos
 
