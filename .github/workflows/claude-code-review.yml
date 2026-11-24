@@ -1,0 +1,29 @@
+name: Claude Code Review
+
+# Requiere el secreto ANTHROPIC_API_KEY (Settings > Secrets and variables > Actions)
+# y la GitHub App de Claude instalada (ejecutar /install-github-app en Claude Code).
+# Consume créditos de API por cada PR: configurar un límite de gasto en la consola de Anthropic.
+# Complementa las dos aprobaciones humanas; no las reemplaza.
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          plugin_marketplaces: "https://github.com/anthropics/claude-code.git"
+          plugins: "code-review@claude-code-plugins"
+          prompt: "/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}"
