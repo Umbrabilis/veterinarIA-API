@@ -4,6 +4,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +16,9 @@ import tech.veterinaria_api.common.RecursoNoEncontradoException;
 import tech.veterinaria_api.common.ReglaNegocioException;
 import tech.veterinaria_api.consultas.dto.DatosClinicosRequest;
 import tech.veterinaria_api.consultas.dto.EnmiendaRequest;
+import tech.veterinaria_api.notificaciones.EventoNotificacion;
+import tech.veterinaria_api.notificaciones.PublicadorNotificaciones;
+import tech.veterinaria_api.notificaciones.TipoNotificacion;
 import tech.veterinaria_api.remoto.PacientesClient;
 import tech.veterinaria_api.remoto.PacientesClient.MascotaRemota;
 import tech.veterinaria_api.security.UsuarioActual;
@@ -26,10 +31,13 @@ import tech.veterinaria_api.security.UsuarioActual;
 @RequiredArgsConstructor
 public class ConsultaService {
 
+    private static final Logger log = LoggerFactory.getLogger(ConsultaService.class);
+
     private final ConsultaRepository consultaRepository;
     private final EnmiendaRepository enmiendaRepository;
     private final PacientesClient pacientesClient;
     private final ApplicationEventPublisher eventos;
+    private final PublicadorNotificaciones avisos;
 
     public Consulta crear(UUID mascotaId, UUID citaId, DatosClinicosRequest datos, UsuarioActual usuario) {
         exigirVeterinario(usuario);
@@ -43,7 +51,10 @@ public class ConsultaService {
                 .estado(EstadoConsulta.ABIERTA)
                 .build();
         aplicar(consulta, datos);
-        return consultaRepository.save(consulta);
+        Consulta guardada = consultaRepository.save(consulta);
+        avisos.publicar(EventoNotificacion.paraTodos(TipoNotificacion.CONSULTA_ABIERTA, "Consulta en curso",
+                mascota.nombre() + " está en consulta", guardada.getId()));
+        return guardada;
     }
 
     @Transactional
@@ -67,20 +78,38 @@ public class ConsultaService {
         return consulta;
     }
 
-    @Transactional
+    /**
+     * Sin transacción: es una sola inserción (una consulta cerrada no vuelve a abrirse) y el aviso necesita el
+     * nombre de la mascota, que se pide a pacientes-service sin retener una conexión de la base de datos.
+     */
     public Enmienda enmendar(UUID id, EnmiendaRequest request, UsuarioActual usuario) {
         exigirVeterinario(usuario);
         Consulta consulta = buscar(id);
         if (!consulta.estaCerrada()) {
             throw new ReglaNegocioException("La consulta está abierta: edítala directamente");
         }
-        return enmiendaRepository.save(Enmienda.builder()
+        Enmienda enmienda = enmiendaRepository.save(Enmienda.builder()
                 .id(UUID.randomUUID())
                 .consultaId(consulta.getId())
                 .autorId(usuario.id())
                 .motivo(request.motivo().trim())
                 .contenido(request.contenido().trim())
                 .build());
+        avisos.publicar(EventoNotificacion.paraTodos(TipoNotificacion.CONSULTA_ENMENDADA,
+                "Historia clínica enmendada",
+                "Se agregó una enmienda a una consulta de " + nombreMascota(consulta.getMascotaId()),
+                consulta.getId()));
+        return enmienda;
+    }
+
+    /** Para avisos: si pacientes-service no responde, la enmienda ya quedó guardada y no debe fallar por esto. */
+    private String nombreMascota(UUID mascotaId) {
+        try {
+            return pacientesClient.obtenerMascota(mascotaId).nombre();
+        } catch (RuntimeException e) {
+            log.warn("No se obtuvo el nombre de la mascota para el aviso ({})", e.getClass().getSimpleName());
+            return "una mascota";
+        }
     }
 
     /** Personal de la clínica: cualquier consulta. Propietario: solo consultas cerradas de sus mascotas. */

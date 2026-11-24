@@ -5,6 +5,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import tools.jackson.databind.json.JsonMapper;
 
@@ -37,5 +39,22 @@ public class PublicadorNotificaciones {
         } catch (RuntimeException e) {
             log.warn("No se pudo publicar la notificación {} ({})", evento.tipo(), e.getClass().getSimpleName());
         }
+    }
+
+    /**
+     * Dentro de una transacción publica solo cuando se confirma: si la operación se revierte, no sale aviso de algo
+     * que no ocurrió. Fuera de una transacción publica de inmediato.
+     */
+    public void publicarAlConfirmar(EventoNotificacion evento) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            publicar(evento);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                publicar(evento);
+            }
+        });
     }
 }

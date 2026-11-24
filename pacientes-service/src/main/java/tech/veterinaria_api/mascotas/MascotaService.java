@@ -12,6 +12,9 @@ import lombok.RequiredArgsConstructor;
 import tech.veterinaria_api.common.AccesoDenegadoException;
 import tech.veterinaria_api.common.RecursoNoEncontradoException;
 import tech.veterinaria_api.mascotas.dto.MascotaRequest;
+import tech.veterinaria_api.notificaciones.EventoNotificacion;
+import tech.veterinaria_api.notificaciones.PublicadorNotificaciones;
+import tech.veterinaria_api.notificaciones.TipoNotificacion;
 import tech.veterinaria_api.propietarios.PropietarioService;
 import tech.veterinaria_api.security.UsuarioActual;
 
@@ -21,6 +24,7 @@ public class MascotaService {
 
     private final MascotaRepository mascotaRepository;
     private final PropietarioService propietarioService;
+    private final PublicadorNotificaciones avisos;
 
     @Transactional
     public Mascota crear(MascotaRequest request, UsuarioActual usuario) {
@@ -30,7 +34,11 @@ public class MascotaService {
                 .activo(true)
                 .build();
         aplicar(mascota, request);
-        return mascotaRepository.save(mascota);
+        Mascota guardada = mascotaRepository.save(mascota);
+        // Solo la mascota: el nombre del propietario es dato personal y no viaja en avisos (Ley 1581).
+        avisos.publicarAlConfirmar(EventoNotificacion.paraTodos(TipoNotificacion.MASCOTA_REGISTRADA,
+                "Nueva mascota", guardada.getNombre() + " quedó registrada como paciente", guardada.getId()));
+        return guardada;
     }
 
     @Transactional

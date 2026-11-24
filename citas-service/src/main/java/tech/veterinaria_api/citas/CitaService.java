@@ -146,6 +146,8 @@ public class CitaService {
         Cita actualizada = guardar(cita);
         if (nuevo == EstadoCita.CANCELADA) {
             avisar(actualizada, TipoNotificacion.CITA_CANCELADA, "Cita cancelada");
+        } else if (nuevo == EstadoCita.CONFIRMADA) {
+            avisar(actualizada, TipoNotificacion.CITA_CONFIRMADA, "Cita confirmada");
         }
         return actualizada;
     }
