@@ -5,7 +5,7 @@
 set -e
 
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname postgres \
-    -c "CREATE ROLE veterinaria_app LOGIN PASSWORD 'veterinaria_app'"
+    -c "CREATE ROLE veterinaria_app LOGIN PASSWORD '${APP_DB_PASSWORD:-veterinaria_app}'"
 
 for db in auth_db pacientes_db citas_db historias_db; do
     psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$db" <<SQL

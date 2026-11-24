@@ -1,0 +1,38 @@
+# Frontend (web-auth): imagen de veterinarIA-web construida con la API en el mismo origen (VITE_API_URL=/).
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-auth
+spec:
+  selector:
+    app: web-auth
+  ports:
+    - port: 80
+      targetPort: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-auth
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: web-auth
+  template:
+    metadata:
+      labels:
+        app: web-auth
+    spec:
+      containers:
+        - name: nginx
+          image: veterinaria/web-auth:1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 20m
+              memory: 16Mi
+            limits:
+              memory: 64Mi

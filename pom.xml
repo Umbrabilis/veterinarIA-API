@@ -21,6 +21,8 @@
 		<module>pacientes-service</module>
 		<module>citas-service</module>
 		<module>historias-service</module>
+		<module>notificaciones-service</module>
+		<module>graphql-gateway</module>
 	</modules>
 
 	<properties>

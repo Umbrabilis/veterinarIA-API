@@ -1,0 +1,38 @@
+# Frontend (web-management): imagen de veterinarIA-web construida con la API en el mismo origen (VITE_API_URL=/).
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-management
+spec:
+  selector:
+    app: web-management
+  ports:
+    - port: 80
+      targetPort: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-management
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: web-management
+  template:
+    metadata:
+      labels:
+        app: web-management
+    spec:
+      containers:
+        - name: nginx
+          image: veterinaria/web-management:1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 20m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
