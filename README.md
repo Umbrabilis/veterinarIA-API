@@ -32,7 +32,7 @@ flowchart LR
 | Módulo | Responsabilidad | Base de datos | Rutas en el gateway |
 |---|---|---|---|
 | `common` | Librería compartida: `ApiError` y manejo de errores, `Patrones` de validación, seguridad JWT, `UsuarioActual`, cliente HTTP entre servicios, OpenAPI. Test-jar con JWT de prueba y PostgreSQL (Testcontainers) | — | — |
-| `auth-service` | Registro, login, emisión de JWT (RS256) y su JWKS, perfil del usuario, directorio de veterinarios | `auth_db` | `/api/v1/auth/**`, `/api/v1/usuarios/**` |
+| `auth-service` | Registro, login, emisión de JWT (RS256) y su JWKS, perfil del usuario, directorio de veterinarios, gestión de cuentas del personal | `auth_db` | `/api/v1/auth/**`, `/api/v1/usuarios/**` |
 | `pacientes-service` | Propietarios (con autorización de tratamiento de datos, Ley 1581) y mascotas | `pacientes_db` | `/api/v1/propietarios/**`, `/api/v1/mascotas/**` |
 | `citas-service` | Agenda: agendar, reprogramar, cancelar, estados. Sin solapamientos (`EXCLUDE USING gist`) | `citas_db` | `/api/v1/citas/**` |
 | `historias-service` | Historia clínica inmutable (consultas, enmiendas), vacunas, seguimiento y resúmenes IA | `historias_db` | `/api/v1/consultas/**`, `/vacunas`, `/seguimiento`, `/resumenes` |
@@ -326,6 +326,9 @@ inválido, 403 = sin permiso, 404 = no existe, 409 = conflicto, 422 = regla de n
 | PUT | `/api/v1/usuarios/me` | personal | Cambia el nombre |
 | PUT | `/api/v1/usuarios/me/password` | personal | Cambia la contraseña (`passwordActual`, `passwordNueva`) |
 | GET | `/api/v1/usuarios/veterinarios` | personal | Veterinarios activos (para agendar) |
+| GET | `/api/v1/usuarios` | admin | Cuentas del personal (administradores y veterinarios) |
+| POST | `/api/v1/usuarios` | admin | Crea una cuenta con contraseña inicial (`nombre`, `email`, `password`, `rol`) |
+| PUT | `/api/v1/usuarios/{id}` | admin | Cambia `nombre`, `rol` y `activo`. El email no se edita; un admin no puede quitarse el rol ni desactivarse (422) |
 
 ### pacientes-service
 
